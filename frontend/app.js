@@ -69,6 +69,9 @@ async function loadDashboard() {
     document.getElementById("stat-profit").textContent = formatPrice(stats.total_profit);
     document.getElementById("stat-delivered").textContent = stats.by_status?.delivered || 0;
 
+    // Render Spending Trend Bar Chart
+    renderSpendingChart(stats.recent_days || []);
+
     // Status pills
     const pillsEl = document.getElementById("status-pills");
     const statusDef = [
@@ -703,7 +706,40 @@ async function loadAnalytics() {
       `;
     }).join("");
 
-  } catch(e) {
-    console.error("Analytics load error:", e);
+function exportCSV() {
+  showToast("📥 جاري تصدير الملف كـ Excel / CSV...");
+  window.location.href = `${API}/api/orders/export`;
+}
+
+function copyToClipboard(text, label = "رقم الطلب") {
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(`📋 تم نسخ ${label} بنجاح!`);
+  }).catch(() => {
+    showToast("❌ تعذر النسخ");
+  });
+}
+
+function renderSpendingChart(recentDays) {
+  const container = document.getElementById("spending-trend-bars");
+  if (!container) return;
+
+  if (!recentDays || !recentDays.length) {
+    container.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);width:100%;text-align:center">لا توجد بيانات نشاط مؤخراً</div>`;
+    return;
   }
+
+  const maxCount = Math.max(...recentDays.map(r => r.count || 1));
+  const sorted = [...recentDays].reverse(); // oldest to newest
+
+  container.innerHTML = sorted.map(r => {
+    const heightPercent = Math.max(10, Math.round((r.count / maxCount) * 100));
+    const dayLabel = (r.day || "").split("-").slice(1).join("/");
+    return `
+      <div class="chart-bar-item" title="${r.day}: ${r.count} طلبات">
+        <div class="chart-bar-fill" style="height:${heightPercent}%"></div>
+        <span class="chart-bar-label">${dayLabel}</span>
+      </div>
+    `;
+  }).join("");
 }

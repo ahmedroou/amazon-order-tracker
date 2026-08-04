@@ -50,6 +50,8 @@ export const ApiService = {
     return request(`/api/analytics?${query.toString()}`);
   },
   
+  exportOrdersUrl: () => `${BASE_URL}/api/orders/export`,
+  
   triggerSync: () => request('/api/sync', { method: 'POST' }),
   triggerAISync: () => request('/api/sync/ai', { method: 'POST' }),
   getSyncStatus: () => request('/api/sync/status'),

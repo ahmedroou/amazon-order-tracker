@@ -21,9 +21,12 @@
 <div id="screen-dashboard" class="screen active">
   <div class="top-bar">
     <span class="top-bar__title">📦 Amazon Tracker</span>
-    <div style="display: flex; gap: 8px;">
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <button class="btn btn--secondary" onclick="exportCSV()" title="تصدير تقرير Excel / CSV" style="padding: 6px 10px; font-size: 0.78rem; border-radius: 20px;">
+        <span>📥 تصدير CSV</span>
+      </button>
       <button class="btn btn--secondary" onclick="triggerAISync()" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 20px; display: flex; align-items: center; gap: 4px;">
-        <span>🤖</span> <span>مزامنة AI الشاملة</span>
+        <span>🤖</span> <span>مزامنة AI</span>
       </button>
       <button class="icon-btn" onclick="triggerSync()" title="مزامنة سريعة">
         <svg id="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -66,6 +69,14 @@
         <div class="stat-card__label">تم التوصيل</div>
         <div class="stat-card__value" id="stat-delivered">—</div>
       </div>
+    </div>
+
+    <!-- Spending Trend Widget -->
+    <div class="chart-card" id="trend-chart-card">
+      <div class="chart-card__header">
+        <span>📈 مخطط النشاط اليومي (آخر 30 يوماً)</span>
+      </div>
+      <div class="chart-bars-container" id="spending-trend-bars"></div>
     </div>
 
     <!-- Status Pills -->

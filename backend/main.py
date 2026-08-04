@@ -209,6 +209,50 @@ async def get_orders(
         }
 
 
+from fastapi.responses import Response
+import csv
+import io
+
+@app.get("/api/orders/export")
+async def export_orders_csv():
+    """تصدير التقارير كملف CSV عالي الجودة يدعم Excel واللغة العربية"""
+    with SessionLocal() as db:
+        orders = db.query(Order).order_by(Order.order_date.desc()).all()
+        
+        output = io.StringIO()
+        output.write('\ufeff')  # UTF-8 BOM for Excel compatibility
+        
+        writer = csv.writer(output)
+        writer.writerow([
+            "م", "رقم طلب أمازون", "اسم المنتج", "سعر الشراء (ر.س)",
+            "سعر البيع (ر.س)", "الربح/الخسارة (ر.س)", "الحالة", "البريد الإلكتروني",
+            "تاريخ الطلب", "شركة الشحن", "رقم التتبع", "ملاحظات الذكاء الاصطناعي"
+        ])
+        
+        for idx, o in enumerate(orders, 1):
+            writer.writerow([
+                idx,
+                o.amazon_order_id or "",
+                o.product_name or "",
+                f"{o.purchase_price:.2f}" if o.purchase_price is not None else "",
+                f"{o.sale_price:.2f}" if o.sale_price is not None else "",
+                f"{o.profit:.2f}" if o.profit is not None else "",
+                o.status or "",
+                o.to_email or "",
+                o.order_date.strftime("%Y-%m-%d") if o.order_date else "",
+                o.carrier or "",
+                o.tracking_number or "",
+                o.notes or ""
+            ])
+            
+        csv_data = output.getvalue()
+        return Response(
+            content=csv_data,
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": "attachment; filename=amazon_orders_report.csv"}
+        )
+
+
 @app.get("/api/analytics")
 async def get_analytics(
     period: Optional[str] = "all",
