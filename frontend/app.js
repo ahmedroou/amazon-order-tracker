@@ -172,7 +172,8 @@ function renderOrderCard(o) {
   const notesHtml = o.notes ? `<div style="font-size:0.7rem;color:var(--accent-light);margin-top:3px;font-style:italic">🤖 ${o.notes}</div>` : "";
 
   return `
-    <button class="order-card order-card--${o.status}" onclick="openDetail(${o.id})">
+    <div class="order-card order-card--${o.status}" onclick="openDetail(${o.id})">
+      <span class="card-quick-delete" onclick="quickDeleteOrder(event, ${o.id})" title="حذف الطلب">🗑️</span>
       ${img}
       <div class="order-card__info">
         <div class="order-card__name">${o.product_name || 'منتج بدون اسم'}</div>
@@ -186,9 +187,8 @@ function renderOrderCard(o) {
       <div class="order-card__right">
         <span class="order-card__price">${formatPrice(o.purchase_price)}</span>
         ${profit}
-        <button class="btn-icon-danger" onclick="quickDeleteOrder(event, ${o.id})" title="حذف الطلب فوراً" style="margin-top:6px;padding:3px 6px;font-size:0.75rem;border-radius:6px">🗑️</button>
       </div>
-    </button>
+    </div>
   `;
 }
 

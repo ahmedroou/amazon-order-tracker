@@ -259,10 +259,11 @@ body {
 .orders-list.padded { padding: 12px 16px; }
 
 .order-card {
+  position: relative;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 14px;
+  padding: 12px 12px 12px 32px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -278,6 +279,32 @@ body {
   background: var(--bg-card-hover);
   border-color: var(--border-glow);
   transform: translateY(-1px);
+}
+
+.card-quick-delete {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+.order-card:hover .card-quick-delete,
+.card-quick-delete:hover {
+  opacity: 1;
+  background: rgba(239, 68, 68, 0.3);
+  transform: scale(1.1);
 }
 
 .order-card__img {
