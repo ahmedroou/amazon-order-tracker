@@ -159,9 +159,66 @@ CARRIER_TRACKING_URLS = {
 # الدالة الرئيسية
 # ══════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════
+# AI Fallback Parser (Gemini API)
+# ══════════════════════════════════════════════════════════
+import os
+import json
+import urllib.request
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+
+def parse_with_ai(email_text: str) -> Optional[Dict]:
+    """
+    استخدام الذكاء الاصطناعي (Gemini 1.5 Flash) كطبقة احتياطية فائقة الذكاء
+    يُستدعى عندما يفشل الـ Regex أو لتقديم دقة 100% في الرسائل المعقدة
+    """
+    if not GEMINI_API_KEY:
+        return None
+
+    prompt = f"""You are an expert email parser for Amazon order confirmation and status update emails.
+Extract the following information from this email in JSON format ONLY:
+- amazon_order_id: string (format like 123-4567890-1234567 or null)
+- product_name: string (short clean name of the product or null)
+- purchase_price: float (total price as number or null)
+- currency: string (SAR, AED, USD, EGP, GBP or null)
+- status: string (one of: pending, shipped, out_for_delivery, delivered, returned, cancelled)
+- tracking_number: string (or null)
+- carrier: string (Amazon, SMSA, Aramex, DHL, FedEx, UPS, SaudiPost or null)
+- estimated_delivery: string (or null)
+
+Email Text:
+{email_text[:3000]}
+
+Return raw JSON only, no markdown:"""
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
+    }
+
+    try:
+        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            text_response = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            # Clean markdown codeblocks if present
+            if text_response.startswith("```"):
+                text_response = re.sub(r"^```(?:json)?\n|\n```$", "", text_response, flags=re.MULTILINE).strip()
+            parsed_json = json.loads(text_response)
+            logger.info(f"✨ AI Parser successfully processed email: {parsed_json.get('amazon_order_id')}")
+            return parsed_json
+    except Exception as e:
+        logger.warning(f"AI Parser error: {e}")
+        return None
+
+
 def parse_order_email(email_data: Dict) -> Optional[Dict]:
     """
-    تحليل شامل لرسالة أمازون — يستخرج أكبر قدر ممكن من البيانات
+    تحليل شامل لرسالة أمازون — هجين بين الـ Regex السريع والـ AI الفائق
     """
     subject  = email_data.get("subject", "")
     body_raw = email_data.get("body", "")
@@ -179,39 +236,34 @@ def parse_order_email(email_data: Dict) -> Optional[Dict]:
         logger.debug(f"No order ID: {subject[:80]}")
         return None
 
-    # حالة الطلب
+    # 1. محاولة الاستخراج عبر Regex الأساسي
     status = detect_status(subject, body_text, snippet)
-
-    # السعر والعملة
     price    = extract_price(full_text)
     currency = detect_currency(full_text)
-
-    # اسم المنتج
     product_name = extract_product_name(subject, body_raw, body_text, snippet)
-
-    # ASIN
     asin = extract_asin(full_text + body_raw)
-
-    # صورة المنتج
     product_image = extract_product_image(body_raw)
-
-    # رابط المنتج
     product_url = build_product_url(asin) if asin else None
-
-    # رقم التتبع وشركة الشحن
     tracking_number, carrier = extract_tracking(full_text)
-
-    # رابط التتبع
     tracking_url = build_tracking_url(carrier, tracking_number, order_id)
-
-    # موعد التوصيل المقدر
     estimated_delivery = extract_delivery_date(full_text)
-
-    # الإيميل الدقيق (مع +alias)
     exact_email = extract_exact_email(to_addr)
-
-    # تاريخ الرسالة
     order_date = parse_date(date_str)
+
+    # 2. إذا نقص اسم المنتج أو السعر، نستخدم الـ AI كطبقة احتياطية (Fallback)
+    if (not product_name or price is None) and GEMINI_API_KEY:
+        logger.info("🤖 Primary regex incomplete, invoking AI Layer (Gemini)...")
+        ai_result = parse_with_ai(full_text)
+        if ai_result:
+            product_name = product_name or ai_result.get("product_name")
+            price = price if price is not None else ai_result.get("purchase_price")
+            currency = currency or ai_result.get("currency", "SAR")
+            status = ai_result.get("status") or status
+            tracking_number = tracking_number or ai_result.get("tracking_number")
+            carrier = carrier or ai_result.get("carrier")
+            estimated_delivery = estimated_delivery or ai_result.get("estimated_delivery")
+            if carrier and tracking_number and not tracking_url:
+                tracking_url = build_tracking_url(carrier, tracking_number, order_id)
 
     return {
         "amazon_order_id":    order_id,
@@ -230,6 +282,7 @@ def parse_order_email(email_data: Dict) -> Optional[Dict]:
         "estimated_delivery": estimated_delivery,
         "raw_subject":        subject,
     }
+
 
 
 # ══════════════════════════════════════════════════════════
