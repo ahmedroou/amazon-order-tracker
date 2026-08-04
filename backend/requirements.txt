@@ -9,3 +9,5 @@ google-auth==2.29.0
 google-auth-oauthlib==1.2.0
 google-api-python-client==2.131.0
 pydantic==2.7.1
+beautifulsoup4==4.12.3
+lxml==5.2.2

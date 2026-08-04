@@ -229,13 +229,63 @@ function renderDetail(o) {
 
   const history = (o.history || []).map(h => `
     <div class="timeline-item">
-      <div class="timeline-dot"></div>
+      <div class="timeline-dot ${h.source === 'tracking' ? 'tracking' : ''}"></div>
       <div class="timeline-text">
         <div class="timeline-status">${statusLabel(h.status)}</div>
-        <div class="timeline-date">${formatDate(h.changed_at)} • ${h.source === 'email' ? 'تلقائي' : 'يدوي'}</div>
+        <div class="timeline-date">${formatDate(h.changed_at)} • ${
+          h.source === 'email' ? '📧 إيميل' :
+          h.source === 'tracking' ? '🚚 شركة الشحن' : '✏️ يدوي'
+        }</div>
       </div>
     </div>
   `).join("");
+
+  // بطاقة التتبع
+  const carrierNames = {
+    Amazon: "أمازون لوجستيك", SMSA: "SMSA سمسا",
+    Aramex: "أرامكس", DHL: "DHL",
+    FedEx: "فيدإكس", UPS: "UPS",
+    SaudiPost: "البريد السعودي"
+  };
+  const carrierAr = carrierNames[o.carrier] || o.carrier || "—";
+
+  const trackingCard = (o.tracking_number || o.tracking_url) ? `
+    <div class="tracking-card" id="tracking-card-${o.id}">
+      <div class="tracking-card__header">
+        <span class="tracking-card__title">📦 تتبع الشحنة</span>
+        <button class="btn-refresh-track" onclick="refreshTracking(${o.id})" title="تحديث">
+          <svg id="track-spin-${o.id}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+            <path d="M23 4v6h-6M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+        </button>
+      </div>
+      <div class="tracking-row">
+        <span class="tracking-label">شركة الشحن</span>
+        <span class="tracking-value">${carrierAr}</span>
+      </div>
+      ${o.tracking_number ? `<div class="tracking-row">
+        <span class="tracking-label">رقم التتبع</span>
+        <span class="tracking-value tracking-number" style="direction:ltr;font-family:monospace">${o.tracking_number}</span>
+      </div>` : ""}
+      ${o.estimated_delivery ? `<div class="tracking-row">
+        <span class="tracking-label">🗓️ موعد التوصيل</span>
+        <span class="tracking-value" style="color:var(--green);font-weight:700">${o.estimated_delivery}</span>
+      </div>` : ""}
+      <div id="tracking-events-${o.id}"></div>
+      ${o.tracking_url ? `<a href="${o.tracking_url}" target="_blank" class="btn btn--primary btn--full" style="margin-top:10px;font-size:0.82rem">
+        🔗 فتح صفحة التتبع
+      </a>` : ""}
+    </div>
+  ` : `
+    <div class="tracking-card empty">
+      <div style="text-align:center;padding:10px">
+        <div style="font-size:1.5rem;margin-bottom:6px">📭</div>
+        <div style="font-size:0.8rem;color:var(--text-muted)">لم يُكتشف رقم تتبع بعد</div>
+        ${o.amazon_order_id ? `<a href="https://www.amazon.sa/progress-tracker/package/?orderId=${o.amazon_order_id}" target="_blank" class="btn btn--secondary" style="margin-top:10px;width:100%;font-size:0.8rem">تتبع عبر أمازون</a>` : ""}
+      </div>
+    </div>
+  `;
 
   document.getElementById("detail-content").innerHTML = `
     <div class="detail-hero">
@@ -247,10 +297,12 @@ function renderDetail(o) {
       </div>
     </div>
 
+    ${trackingCard}
+
     <div class="info-card">
       <div class="info-row">
         <span class="info-row__label">📧 الإيميل المستخدم</span>
-        <span class="info-row__value" style="direction:ltr">${o.to_email || '—'}</span>
+        <span class="info-row__value" style="direction:ltr;font-size:0.78rem">${o.to_email || '—'}</span>
       </div>
       <div class="info-row">
         <span class="info-row__label">💰 سعر الشراء</span>
@@ -264,6 +316,7 @@ function renderDetail(o) {
         <span class="info-row__label">📅 تاريخ الطلب</span>
         <span class="info-row__value">${o.order_date ? formatDate(o.order_date) : '—'}</span>
       </div>
+
       ${o.notes ? `<div class="info-row">
         <span class="info-row__label">📝 ملاحظات</span>
         <span class="info-row__value">${o.notes}</span>
@@ -287,6 +340,53 @@ function renderDetail(o) {
 
   // Delete button
   document.getElementById("detail-delete-btn").onclick = () => deleteOrder(o.id);
+}
+
+
+// ─── Live Tracking ────────────────────────────
+
+async function refreshTracking(orderId) {
+  const spinEl = document.getElementById(`track-spin-${orderId}`);
+  if (spinEl) spinEl.closest(".btn-refresh-track").classList.add("spinning");
+
+  try {
+    const result = await fetch(`${API}/api/orders/${orderId}/track`).then(r => r.json());
+    const eventsEl = document.getElementById(`tracking-events-${orderId}`);
+
+    if (eventsEl && result.events?.length) {
+      eventsEl.innerHTML = `
+        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+          <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:8px;font-weight:600">📍 آخر الأحداث</div>
+          ${result.events.slice(0, 5).map(e => `
+            <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+              <div style="width:8px;height:8px;border-radius:50%;background:var(--blue);margin-top:4px;flex-shrink:0"></div>
+              <div>
+                <div style="font-size:0.75rem;color:var(--text-primary)">${e.description || ''}</div>
+                <div style="font-size:0.68rem;color:var(--text-muted)">${e.location || ''} ${e.date ? '· ' + formatDate(e.date) : ''}</div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    } else if (eventsEl) {
+      eventsEl.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);padding:8px 0;text-align:center">لا توجد أحداث متاحة حالياً</div>`;
+    }
+
+    if (result.estimated_delivery) {
+      showToast(`🗓️ موعد التوصيل: ${result.estimated_delivery}`);
+    } else {
+      showToast("✅ تم تحديث معلومات التتبع");
+    }
+
+    // إعادة تحميل التفاصيل لو تغيرت الحالة
+    if (result.status && result.status !== "pending") {
+      openDetail(orderId);
+    }
+  } catch(e) {
+    showToast("❌ خطأ في التتبع", "error");
+  } finally {
+    if (spinEl) spinEl.closest(".btn-refresh-track").classList.remove("spinning");
+  }
 }
 
 // ─── Edit Modal ───────────────────────────────

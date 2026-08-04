@@ -65,10 +65,13 @@ class Order(Base):
     # pending / shipped / delivered / returned / cancelled
 
     # بيانات إضافية
-    order_date = Column(DateTime, nullable=True)     # تاريخ الطلب
-    estimated_delivery = Column(String(100), nullable=True)
-    tracking_number = Column(String(100), nullable=True)
-    notes = Column(Text, nullable=True)              # ملاحظات يدوية
+    order_date = Column(DateTime, nullable=True)               # تاريخ الطلب
+    estimated_delivery = Column(String(200), nullable=True)    # موعد التوصيل المتوقع (نص)
+    delivery_date = Column(DateTime, nullable=True)            # تاريخ التوصيل الفعلي
+    tracking_number = Column(String(100), nullable=True)       # رقم التتبع
+    carrier = Column(String(50), nullable=True)                # شركة الشحن
+    tracking_url = Column(Text, nullable=True)                 # رابط التتبع المباشر
+    notes = Column(Text, nullable=True)                        # ملاحظات يدوية
 
     # بيانات النظام
     email_message_id = Column(String(255), nullable=True)  # ID الرسالة في Gmail
@@ -88,11 +91,12 @@ class Order(Base):
     @property
     def status_ar(self):
         statuses = {
-            "pending": "⏳ قيد الانتظار",
-            "shipped": "🚚 تم الشحن",
-            "delivered": "✅ تم التوصيل",
-            "returned": "↩️ مُعاد",
-            "cancelled": "❌ مُلغى",
+            "pending":          "⏳ قيد الانتظار",
+            "shipped":          "🚚 تم الشحن",
+            "out_for_delivery": "🛵 خرج للتوصيل",
+            "delivered":        "✅ تم التوصيل",
+            "returned":         "↩️ مُعاد",
+            "cancelled":        "❌ مُلغى",
         }
         return statuses.get(self.status, self.status)
 

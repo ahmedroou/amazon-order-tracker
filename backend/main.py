@@ -18,6 +18,7 @@ from database.models import init_db, SessionLocal, EmailAccount, Order, OrderSta
 from gmail_client import get_auth_url, exchange_code_for_tokens, fetch_amazon_emails
 from email_parser import parse_order_email, detect_currency
 from bot.notify import notify_new_order, notify_status_change
+from tracker import get_tracking_status, refresh_shipped_orders
 
 load_dotenv()
 
@@ -58,6 +59,13 @@ async def startup():
     logger.info("✅ Database initialized")
     interval = int(os.getenv("SYNC_INTERVAL_MINUTES", "30"))
     scheduler.add_job(sync_all_accounts, "interval", minutes=interval, id="sync_emails")
+    scheduler.add_job(
+        refresh_shipped_orders,
+        "interval",
+        hours=2,
+        id="refresh_tracking",
+        args=[SessionLocal],
+    )
     scheduler.start()
     logger.info(f"⏰ Scheduler started: every {interval} minutes")
 
@@ -183,9 +191,38 @@ async def get_orders(
         orders = q.offset(offset).limit(limit).all()
 
         return {
-            "total": total,
-            "orders": [serialize_order(o) for o in orders]
-        }
+        "total": total,
+        "orders": [serialize_order(o) for o in orders]
+    }
+
+
+@app.get("/api/orders/{order_id}/track")
+async def track_order(order_id: int):
+    """تتبع حي لشحنة طلب محدد"""
+    with SessionLocal() as db:
+        order = db.query(Order).filter_by(id=order_id).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        result = await get_tracking_status(
+            order.tracking_number or "",
+            order.carrier or "Amazon",
+            order.amazon_order_id,
+        )
+
+        # تحديث الحالة لو تغيرت
+        new_status = result.get("status")
+        if new_status and new_status != order.status and new_status not in ["", "pending"]:
+            old_status = order.status
+            order.status = new_status
+            order.updated_at = datetime.utcnow()
+            db.add(OrderStatusHistory(
+                order_id=order.id, status=new_status, source="tracking"
+            ))
+            db.commit()
+
+        return result
+
 
 
 @app.get("/api/orders/{order_id}")
@@ -368,16 +405,23 @@ async def sync_account(acc: dict) -> int:
                         old_status, new_status
                     )
             else:
-                # طلب جديد
+                # طلب جديد — حفظ كل البيانات المستخرجة
                 order = Order(
                     account_id=acc["id"],
                     amazon_order_id=order_id,
                     product_name=parsed.get("product_name"),
+                    asin=parsed.get("asin"),
+                    product_image=parsed.get("product_image"),
+                    product_url=parsed.get("product_url"),
                     purchase_price=parsed.get("purchase_price"),
                     to_email=parsed.get("to_email") or acc["email"],
                     status=parsed.get("status", "pending"),
                     order_date=parsed.get("order_date") or datetime.utcnow(),
-                    currency=detect_currency(email_data.get("body", "")),
+                    currency=parsed.get("currency") or detect_currency(email_data.get("body", "")),
+                    tracking_number=parsed.get("tracking_number"),
+                    carrier=parsed.get("carrier"),
+                    tracking_url=parsed.get("tracking_url"),
+                    estimated_delivery=parsed.get("estimated_delivery"),
                     email_message_id=email_data.get("gmail_message_id"),
                 )
                 db.add(order)
@@ -414,6 +458,7 @@ def serialize_order(order: Order, include_history: bool = False) -> dict:
         "product_name": order.product_name,
         "product_image": order.product_image,
         "product_url": order.product_url,
+        "asin": order.asin,
         "to_email": order.to_email,
         "purchase_price": order.purchase_price,
         "sale_price": order.sale_price,
@@ -422,6 +467,10 @@ def serialize_order(order: Order, include_history: bool = False) -> dict:
         "status": order.status,
         "status_ar": order.status_ar,
         "order_date": order.order_date.isoformat() if order.order_date else None,
+        "estimated_delivery": order.estimated_delivery,
+        "tracking_number": order.tracking_number,
+        "carrier": order.carrier,
+        "tracking_url": order.tracking_url,
         "notes": order.notes,
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "updated_at": order.updated_at.isoformat() if order.updated_at else None,
@@ -432,6 +481,7 @@ def serialize_order(order: Order, include_history: bool = False) -> dict:
             for h in order.status_history
         ]
     return data
+
 
 
 if __name__ == "__main__":
