@@ -58,7 +58,15 @@ async def startup():
     init_db()
     logger.info("✅ Database initialized")
     interval = int(os.getenv("SYNC_INTERVAL_MINUTES", "30"))
-    scheduler.add_job(sync_all_accounts, "interval", minutes=interval, id="sync_emails")
+    
+    # 1. المزامنة الآلية السريعة (كل 30 دقيقة)
+    scheduler.add_job(sync_all_accounts, "interval", minutes=interval, id="sync_emails", args=[False])
+    
+    # 2. التدقيق والمراجعة الشاملة بالذكاء الاصطناعي (كل 4 ساعات)
+    ai_interval_hours = int(os.getenv("AI_AUDIT_INTERVAL_HOURS", "4"))
+    scheduler.add_job(sync_all_accounts, "interval", hours=ai_interval_hours, id="ai_audit_job", args=[True])
+    
+    # 3. تحديث التتبع لطلبات الشحن
     scheduler.add_job(
         refresh_shipped_orders,
         "interval",
@@ -67,7 +75,7 @@ async def startup():
         args=[SessionLocal],
     )
     scheduler.start()
-    logger.info(f"⏰ Scheduler started: every {interval} minutes")
+    logger.info(f"⏰ Scheduler started: Fast sync every {interval}m | AI Audit every {ai_interval_hours}h")
 
 
 @app.on_event("shutdown")
