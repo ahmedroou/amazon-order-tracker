@@ -107,9 +107,9 @@ def fetch_amazon_emails(access_token: str, refresh_token: str, expiry: Optional[
     try:
         service = build("gmail", "v1", credentials=creds)
 
-        # بناء الفلتر: رسائل من أمازون فقط
+        # بناء الفلتر: رسائل من أمازون بمختلف النطاقات
         query_parts = [
-            "from:(ship-confirm@amazon.com OR order-update@amazon.com OR auto-confirm@amazon.com OR shipment-tracking@amazon.com OR no-reply@amazon.com OR marketplace@amazon.com)"
+            "from:(amazon.com OR amazon.sa OR amazon.ae)"
         ]
         if after_timestamp:
             query_parts.append(f"after:{after_timestamp}")
