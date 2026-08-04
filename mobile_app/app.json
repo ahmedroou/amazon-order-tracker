@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "طلباتي — Amazon Tracker",
+    "slug": "amazon-order-tracker-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f0c29"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.amazon.ordertracker"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f0c29"
+      },
+      "package": "com.amazon.ordertracker"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
