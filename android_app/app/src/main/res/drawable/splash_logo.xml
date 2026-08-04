@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Amazon Tracker splash logo — shopping box with arrow -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- White box body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,32 L88,32 L88,82 Q88,86 84,86 L24,86 Q20,86 20,82 Z" />
+
+    <!-- Box lid left -->
+    <path
+        android:fillColor="#FFEECC"
+        android:pathData="M18,22 L52,22 L52,32 L18,32 Z"
+        android:strokeColor="#FF6B00"
+        android:strokeWidth="1" />
+
+    <!-- Box lid right -->
+    <path
+        android:fillColor="#FFEECC"
+        android:pathData="M56,22 L90,22 L90,32 L56,32 Z"
+        android:strokeColor="#FF6B00"
+        android:strokeWidth="1" />
+
+    <!-- Center tape -->
+    <path
+        android:fillColor="#FF6B00"
+        android:pathData="M50,22 L58,22 L58,86 L50,86 Z" />
+
+    <!-- Amazon smile arrow (orange) -->
+    <path
+        android:fillColor="#FF6B00"
+        android:pathData="M30,68 Q54,78 78,68"
+        android:strokeColor="#FF6B00"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+
+    <!-- Arrow tip -->
+    <path
+        android:fillColor="#FF6B00"
+        android:pathData="M73,64 L79,68 L73,72 Z" />
+
+</vector>

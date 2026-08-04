@@ -1,3 +1,33 @@
 <resources>
-    <string name="app_name">AmazonTracker</string>
+    <string name="app_name">طلباتي</string>
+    <string name="tab_dashboard">الرئيسية</string>
+    <string name="tab_orders">الطلبات</string>
+    <string name="tab_analytics">التحليلات</string>
+    <string name="tab_settings">الإعدادات</string>
+    <string name="loading">جاري التحميل…</string>
+    <string name="error_network">تعذّر الاتصال بالخادم</string>
+    <string name="retry">إعادة المحاولة</string>
+    <string name="sync_now">مزامنة الآن</string>
+    <string name="total_orders">إجمالي الطلبات</string>
+    <string name="total_profit">الربح الإجمالي</string>
+    <string name="status_delivered">تم التوصيل</string>
+    <string name="status_shipped">جاري الشحن</string>
+    <string name="status_pending">قيد الانتظار</string>
+    <string name="status_cancelled">ملغي</string>
+    <string name="status_returned">مُعاد</string>
+    <string name="search_hint">ابحث عن طلب أو منتج…</string>
+    <string name="no_orders">لا توجد طلبات حتى الآن</string>
+    <string name="order_id">رقم الطلب</string>
+    <string name="product_name">اسم المنتج</string>
+    <string name="order_date">تاريخ الطلب</string>
+    <string name="price">السعر</string>
+    <string name="tracking">التتبع</string>
+    <string name="copy">نسخ</string>
+    <string name="copied">تم النسخ</string>
+    <string name="export_csv">تصدير CSV</string>
+    <string name="syncing">جاري المزامنة…</string>
+    <string name="sync_done">اكتملت المزامنة</string>
+    <string name="all_statuses">كل الحالات</string>
+    <string name="base_url">https://84.8.102.52.sslip.io</string>
+    <string name="sar">ر.س</string>
 </resources>
