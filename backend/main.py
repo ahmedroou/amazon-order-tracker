@@ -90,6 +90,7 @@ async def serve_frontend():
 # ─── Gmail OAuth ──────────────────────────────────────────
 
 @app.get("/auth/gmail")
+@app.get("/api/auth/gmail/login")
 async def gmail_auth():
     """بدء عملية تفويض Gmail"""
     url = get_auth_url()
@@ -97,6 +98,7 @@ async def gmail_auth():
 
 
 @app.get("/auth/callback")
+@app.get("/api/auth/gmail/callback")
 async def gmail_callback(code: str, request: Request):
     """استقبال الكود وإتمام التفويض"""
     try:
