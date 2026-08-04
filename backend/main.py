@@ -398,61 +398,82 @@ async def sync_account(acc: dict) -> int:
 
     with SessionLocal() as db:
         for email_data in emails:
-            parsed = parse_order_email(email_data)
-            if not parsed or not parsed.get("amazon_order_id"):
+            parsed_list = parse_order_email(email_data)
+            if not parsed_list:
                 continue
 
-            order_id = parsed["amazon_order_id"]
-            existing = db.query(Order).filter_by(amazon_order_id=order_id).first()
+            for parsed in parsed_list:
+                order_id = parsed.get("amazon_order_id")
+                if not order_id:
+                    continue
+                
+                parsed_status = parsed.get("status", "pending")
+                parsed_product_name = parsed.get("product_name")
 
-            if existing:
-                # تحديث الحالة إذا تغيرت
-                new_status = parsed.get("status", "pending")
-                if new_status != existing.status and new_status != "pending":
-                    old_status = existing.status
-                    existing.status = new_status
-                    existing.updated_at = datetime.utcnow()
-                    db.add(OrderStatusHistory(
-                        order_id=existing.id,
-                        status=new_status,
-                        source="email"
-                    ))
-                    db.commit()
-                    await notify_status_change(
-                        {"product_name": existing.product_name, "amazon_order_id": order_id},
-                        old_status, new_status
+                # جلب جميع القطع المرتبطة برقم الطلب
+                existing_items = db.query(Order).filter_by(amazon_order_id=order_id).all()
+
+                if existing_items:
+                    # تحديث الحالة
+                    items_to_update = []
+                    
+                    if parsed_product_name:
+                        # محاولة إيجاد القطعة المحددة باسم المنتج
+                        for item in existing_items:
+                            if item.product_name and parsed_product_name.lower() in item.product_name.lower():
+                                items_to_update.append(item)
+                                break
+                    
+                    # إذا لم نجد قطعة محددة أو لم يكن هناك اسم منتج (إلغاء للطلب بالكامل)، نحدث الكل
+                    if not items_to_update:
+                        items_to_update = existing_items
+
+                    for existing in items_to_update:
+                        if parsed_status != existing.status and parsed_status != "pending":
+                            old_status = existing.status
+                            existing.status = parsed_status
+                            existing.updated_at = datetime.utcnow()
+                            db.add(OrderStatusHistory(
+                                order_id=existing.id,
+                                status=parsed_status,
+                                source="email"
+                            ))
+                            db.commit()
+                            await notify_status_change(
+                                {"product_name": existing.product_name, "amazon_order_id": order_id},
+                                old_status, parsed_status
+                            )
+                else:
+                    # طلب جديد (أو قطعة جديدة) — حفظ كل البيانات
+                    order = Order(
+                        account_id=acc["id"],
+                        amazon_order_id=order_id,
+                        product_name=parsed_product_name,
+                        asin=parsed.get("asin"),
+                        product_image=parsed.get("product_image"),
+                        product_url=parsed.get("product_url"),
+                        purchase_price=parsed.get("purchase_price"),
+                        to_email=parsed.get("to_email") or acc["email"],
+                        status=parsed_status,
+                        order_date=parsed.get("order_date") or datetime.utcnow(),
+                        currency=parsed.get("currency") or detect_currency(email_data.get("body", "")),
+                        tracking_number=parsed.get("tracking_number"),
+                        carrier=parsed.get("carrier"),
+                        tracking_url=parsed.get("tracking_url"),
+                        estimated_delivery=parsed.get("estimated_delivery"),
+                        email_message_id=email_data.get("gmail_message_id"),
                     )
-            else:
-                # طلب جديد — حفظ كل البيانات المستخرجة
-                order = Order(
-                    account_id=acc["id"],
-                    amazon_order_id=order_id,
-                    product_name=parsed.get("product_name"),
-                    asin=parsed.get("asin"),
-                    product_image=parsed.get("product_image"),
-                    product_url=parsed.get("product_url"),
-                    purchase_price=parsed.get("purchase_price"),
-                    to_email=parsed.get("to_email") or acc["email"],
-                    status=parsed.get("status", "pending"),
-                    order_date=parsed.get("order_date") or datetime.utcnow(),
-                    currency=parsed.get("currency") or detect_currency(email_data.get("body", "")),
-                    tracking_number=parsed.get("tracking_number"),
-                    carrier=parsed.get("carrier"),
-                    tracking_url=parsed.get("tracking_url"),
-                    estimated_delivery=parsed.get("estimated_delivery"),
-                    email_message_id=email_data.get("gmail_message_id"),
-                )
-                db.add(order)
-                db.commit()
-                db.refresh(order)
-                new_count += 1
-                await notify_new_order({
-                    "product_name": order.product_name,
-                    "purchase_price": order.purchase_price,
-                    "to_email": order.to_email,
-                    "amazon_order_id": order.amazon_order_id,
-                    "status": order.status,
-                })
+                    db.add(order)
+                    db.commit()
+                    db.refresh(order)
+                    new_count += 1
+                    await notify_new_order({
+                        "product_name": order.product_name,
+                        "purchase_price": order.purchase_price,
+                        "to_email": order.to_email,
+                        "amazon_order_id": order.amazon_order_id,
+                        "status": order.status,
+                    })
 
         # تحديث وقت آخر مزامنة والتوكن
         account = db.query(EmailAccount).filter_by(id=acc["id"]).first()

@@ -49,7 +49,7 @@ class Order(Base):
     account_id = Column(Integer, ForeignKey("email_accounts.id"), nullable=False)
 
     # بيانات الطلب (من الإيميل تلقائياً)
-    amazon_order_id = Column(String(50), unique=True, nullable=True)   # رقم الطلب من أمازون
+    amazon_order_id = Column(String(50), nullable=True)                 # رقم الطلب من أمازون
     product_name = Column(String(500), nullable=True)                   # اسم المنتج
     product_image = Column(Text, nullable=True)                         # صورة المنتج (URL)
     product_url = Column(Text, nullable=True)                           # رابط المنتج

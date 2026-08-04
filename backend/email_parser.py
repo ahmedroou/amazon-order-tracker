@@ -178,20 +178,24 @@ def parse_with_ai(email_text: str) -> Optional[Dict]:
         return None
 
     prompt = f"""You are an expert email parser for Amazon order confirmation and status update emails.
-Extract the following information from this email in JSON format ONLY:
+Extract the items from this email and return a JSON ARRAY of objects ONLY.
+Each object in the array must represent an item in the order with these keys:
 - amazon_order_id: string (format like 123-4567890-1234567 or null)
 - product_name: string (short clean name of the product or null)
-- purchase_price: float (total price as number or null)
+- purchase_price: float (price of this specific item as number or null)
 - currency: string (SAR, AED, USD, EGP, GBP or null)
 - status: string (one of: pending, shipped, out_for_delivery, delivered, returned, cancelled)
 - tracking_number: string (or null)
 - carrier: string (Amazon, SMSA, Aramex, DHL, FedEx, UPS, SaudiPost or null)
 - estimated_delivery: string (or null)
 
+If there are multiple products in the email, return an array of multiple objects.
+If there is one product, return an array of one object.
+
 Email Text:
 {email_text[:3000]}
 
-Return raw JSON only, no markdown:"""
+Return a raw JSON array only, no markdown:"""
 
     models_to_try = [
         "gemini-3.6-flash",
@@ -216,17 +220,24 @@ Return raw JSON only, no markdown:"""
                 if text_response.startswith("```"):
                     text_response = re.sub(r"^```(?:json)?\n|\n```$", "", text_response, flags=re.MULTILINE).strip()
                 parsed_json = json.loads(text_response)
-                logger.info(f"✨ AI Parser ({model_name}) successfully processed email: {parsed_json.get('amazon_order_id')}")
+                
+                # Ensure we always return a list
+                if isinstance(parsed_json, dict):
+                    parsed_json = [parsed_json]
+                elif not isinstance(parsed_json, list):
+                    parsed_json = []
+
+                logger.info(f"✨ AI Parser ({model_name}) successfully processed {len(parsed_json)} items.")
                 return parsed_json
         except Exception as e:
             logger.debug(f"AI Parser ({model_name}) attempt error: {e}")
             continue
 
-    return None
+    return []
 
 
 
-def parse_order_email(email_data: Dict) -> Optional[Dict]:
+def parse_order_email(email_data: Dict) -> List[Dict]:
     """
     تحليل شامل لرسالة أمازون — هجين بين الـ Regex السريع والـ AI الفائق
     """
@@ -244,7 +255,7 @@ def parse_order_email(email_data: Dict) -> Optional[Dict]:
     order_id = extract_order_id(full_text)
     if not order_id:
         logger.debug(f"No order ID: {subject[:80]}")
-        return None
+        return []
 
     # 1. محاولة الاستخراج عبر Regex الأساسي
     status = detect_status(subject, body_text, snippet)
@@ -260,22 +271,7 @@ def parse_order_email(email_data: Dict) -> Optional[Dict]:
     exact_email = extract_exact_email(to_addr)
     order_date = parse_date(date_str)
 
-    # 2. إذا نقص اسم المنتج أو السعر، نستخدم الـ AI كطبقة احتياطية (Fallback)
-    if (not product_name or price is None) and GEMINI_API_KEY:
-        logger.info("🤖 Primary regex incomplete, invoking AI Layer (Gemini)...")
-        ai_result = parse_with_ai(full_text)
-        if ai_result:
-            product_name = product_name or ai_result.get("product_name")
-            price = price if price is not None else ai_result.get("purchase_price")
-            currency = currency or ai_result.get("currency", "SAR")
-            status = ai_result.get("status") or status
-            tracking_number = tracking_number or ai_result.get("tracking_number")
-            carrier = carrier or ai_result.get("carrier")
-            estimated_delivery = estimated_delivery or ai_result.get("estimated_delivery")
-            if carrier and tracking_number and not tracking_url:
-                tracking_url = build_tracking_url(carrier, tracking_number, order_id)
-
-    return {
+    base_item = {
         "amazon_order_id":    order_id,
         "product_name":       product_name,
         "asin":               asin,
@@ -292,6 +288,30 @@ def parse_order_email(email_data: Dict) -> Optional[Dict]:
         "estimated_delivery": estimated_delivery,
         "raw_subject":        subject,
     }
+
+    # 2. إذا نقص اسم المنتج أو السعر، أو إذا أردنا جلب عدة منتجات في طلب واحد
+    if GEMINI_API_KEY and (not product_name or price is None or "item" in full_text.lower() or "cancel" in status):
+        logger.info("🤖 Invoking AI Layer for multi-item / complex parsing...")
+        ai_results = parse_with_ai(full_text)
+        
+        if ai_results and len(ai_results) > 0:
+            final_items = []
+            for ai_item in ai_results:
+                item = base_item.copy()
+                item["product_name"] = ai_item.get("product_name") or product_name
+                item["purchase_price"] = ai_item.get("purchase_price") if ai_item.get("purchase_price") is not None else price
+                item["currency"] = ai_item.get("currency") or currency
+                item["status"] = ai_item.get("status") or status
+                item["tracking_number"] = ai_item.get("tracking_number") or tracking_number
+                item["carrier"] = ai_item.get("carrier") or carrier
+                item["estimated_delivery"] = ai_item.get("estimated_delivery") or estimated_delivery
+                
+                if item["carrier"] and item["tracking_number"] and not item["tracking_url"]:
+                    item["tracking_url"] = build_tracking_url(item["carrier"], item["tracking_number"], order_id)
+                final_items.append(item)
+            return final_items
+
+    return [base_item]
 
 
 
