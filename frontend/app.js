@@ -170,7 +170,7 @@ function renderOrderCard(o) {
   const date = o.order_date ? formatDate(o.order_date) : "";
 
   return `
-    <button class="order-card" onclick="openDetail(${o.id})">
+    <button class="order-card order-card--${o.status}" onclick="openDetail(${o.id})">
       ${img}
       <div class="order-card__info">
         <div class="order-card__name">${o.product_name || 'منتج بدون اسم'}</div>
@@ -453,21 +453,33 @@ async function loadSettings() {
       return;
     }
 
-    el.innerHTML = accounts.map(a => `
-      <div class="account-item">
-        <div>
-          <div class="account-item__email">${a.email}</div>
-          <div class="account-item__meta">
-            ${a.order_count} طلب
-            ${a.last_synced ? ' • آخر فحص: ' + formatDate(a.last_synced) : ''}
+    el.innerHTML = accounts.map(a => {
+      const isError = a.status === "auth_error" || a.status === "revoked";
+      const statusBadge = isError
+        ? `<span class="badge-account-status error">⚠️ تحتاج إعادة ربط</span>`
+        : `<span class="badge-account-status active">🟢 نشط</span>`;
+
+      return `
+        <div class="account-item ${isError ? 'has-error' : ''}">
+          <div>
+            <div class="account-item__email" style="direction:ltr;text-align:right">
+              ${a.email} ${statusBadge}
+            </div>
+            <div class="account-item__meta">
+              ${a.order_count} طلب
+              ${a.last_synced ? ' • آخر فحص: ' + formatDate(a.last_synced) : ''}
+              ${isError ? `<div style="color:var(--red);font-size:0.7rem;margin-top:2px">انتهت الجلسة أو ألغي التفويض</div>` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${isError ? `<a href="${API}/auth/gmail" class="btn btn--primary" style="padding:4px 8px;font-size:0.72rem">إعادة ربط</a>` : ''}
+            <button class="btn btn--secondary" style="padding:5px 10px;font-size:0.75rem" onclick="syncAccount(${a.id})" title="مزامنة فورية">🔄</button>
+            <button class="btn-icon-danger" onclick="deleteAccount(${a.id})">حذف</button>
           </div>
         </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn--secondary" style="padding:5px 10px;font-size:0.75rem" onclick="syncAccount(${a.id})">🔄</button>
-          <button class="btn-icon-danger" onclick="deleteAccount(${a.id})">حذف</button>
-        </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
+
   } catch(e) {
     console.error("Settings load error:", e);
   }

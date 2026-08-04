@@ -135,11 +135,14 @@ async def get_accounts():
                 "id": a.id,
                 "email": a.email,
                 "display_name": a.display_name,
+                "status": getattr(a, "status", "active") or "active",
+                "last_error": getattr(a, "last_error", None),
                 "last_synced": a.last_synced.isoformat() if a.last_synced else None,
                 "order_count": db.query(Order).filter_by(account_id=a.id).count(),
             }
             for a in accounts
         ]
+
 
 
 @app.delete("/api/accounts/{account_id}")
@@ -358,11 +361,24 @@ async def sync_all_accounts() -> int:
         try:
             new_count = await sync_account(acc)
             total_new += new_count
+            with SessionLocal() as db:
+                a = db.query(EmailAccount).filter_by(id=acc["id"]).first()
+                if a:
+                    a.status = "active"
+                    a.last_error = None
+                    db.commit()
         except Exception as e:
             logger.error(f"Error syncing {acc['email']}: {e}")
+            with SessionLocal() as db:
+                a = db.query(EmailAccount).filter_by(id=acc["id"]).first()
+                if a:
+                    a.status = "auth_error"
+                    a.last_error = str(e)
+                    db.commit()
 
     logger.info(f"✅ Sync complete. New orders: {total_new}")
     return total_new
+
 
 
 async def sync_account(acc: dict) -> int:

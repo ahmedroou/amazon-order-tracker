@@ -32,10 +32,13 @@ class EmailAccount(Base):
     refresh_token = Column(Text, nullable=True)
     token_expiry = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
+    status = Column(String(30), default="active")                # active / auth_error / revoked
+    last_error = Column(Text, nullable=True)                      # تفاصيل آخر خطأ
     last_synced = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     orders = relationship("Order", back_populates="account", cascade="all, delete-orphan")
+
 
 
 class Order(Base):
