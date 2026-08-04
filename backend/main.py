@@ -400,18 +400,30 @@ async def get_stats():
         }
 
 
+@app.get("/api/sync/status")
+async def get_sync_status():
+    """معاينة حالة المزامنة والنسبة المئوية اللحظية"""
+    return sync_state
+
+
 from fastapi import BackgroundTasks
 
 @app.post("/api/sync")
 async def sync_now(background_tasks: BackgroundTasks):
-    """مزامنة فورية لكل الحسابات في الخلفية"""
+    """مزامنة فورية لكل الحسابات في الخلفية مع قفل التزامن"""
+    if sync_state["is_syncing"]:
+        return {"success": False, "message": "هناك عملية مزامنة قيد التشغيل بالفعل حالياً", "sync_state": sync_state}
+    
     background_tasks.add_task(sync_all_accounts, use_ai_forced=False)
     return {"success": True, "message": "بدأت المزامنة الفورية في الخلفية"}
 
 
 @app.post("/api/sync/ai")
 async def sync_now_ai(background_tasks: BackgroundTasks):
-    """مزامنة الذكاء الاصطناعي الشاملة (AI Deep Sync) لكافة الرسائل والمعاملات في الخلفية"""
+    """مزامنة الذكاء الاصطناعي الشاملة (AI Deep Sync) لكافة الرسائل مع قفل التزامن"""
+    if sync_state["is_syncing"]:
+        return {"success": False, "message": "هناك عملية مزامنة قيد التشغيل بالفعل حالياً", "sync_state": sync_state}
+    
     background_tasks.add_task(sync_all_accounts, use_ai_forced=True)
     return {"success": True, "message": "بدأت المزامنة الذكية الشاملة في الخلفية", "mode": "ai_deep_sync"}
 
@@ -420,37 +432,97 @@ async def sync_now_ai(background_tasks: BackgroundTasks):
 
 async def sync_all_accounts(use_ai_forced: bool = False) -> int:
     """الدالة الرئيسية لفحص كل الحسابات المربوطة"""
+    global sync_state
+    if sync_state["is_syncing"]:
+        logger.warning("Sync requested while already syncing, skipping.")
+        return 0
+
     mode_str = "AI Deep Sync 🤖" if use_ai_forced else "Standard Sync 🔄"
     logger.info(f"🔄 Starting email sync ({mode_str}) for all accounts...")
+
+    sync_state.update({
+        "is_syncing": True,
+        "mode": "ai" if use_ai_forced else "standard",
+        "total_emails": 0,
+        "processed_emails": 0,
+        "percent": 0,
+        "current_subject": "جاري التحضير...",
+        "new_orders_found": 0,
+    })
+
     total_new = 0
 
-    with SessionLocal() as db:
-        accounts = db.query(EmailAccount).filter_by(is_active=True).all()
-        accounts_data = [
-            {
-                "id": a.id,
-                "email": a.email,
-                "access_token": a.access_token,
-                "refresh_token": a.refresh_token,
-                "token_expiry": a.token_expiry,
-                "last_synced": a.last_synced,
-            }
-            for a in accounts
-        ]
+    try:
+        with SessionLocal() as db:
+            accounts = db.query(EmailAccount).filter_by(is_active=True).all()
+            accounts_data = [
+                {
+                    "id": a.id,
+                    "email": a.email,
+                    "access_token": a.access_token,
+                    "refresh_token": a.refresh_token,
+                    "token_expiry": a.token_expiry,
+                    "last_synced": a.last_synced,
+                }
+                for a in accounts
+            ]
 
-    for acc in accounts_data:
-        if not acc["access_token"]:
-            continue
-        try:
-            new_count = await sync_account(acc, use_ai_forced=use_ai_forced)
-            total_new += new_count
-            with SessionLocal() as db:
-                a = db.query(EmailAccount).filter_by(id=acc["id"]).first()
-                if a:
-                    a.status = "active"
-                    a.last_error = None
-                    db.commit()
-        except Exception as e:
+        for acc in accounts_data:
+            if not acc["access_token"]:
+                continue
+            try:
+                new_count = await sync_account(acc, use_ai_forced=use_ai_forced)
+                total_new += new_count
+                with SessionLocal() as db:
+                    a = db.query(EmailAccount).filter_by(id=acc["id"]).first()
+                    if a:
+                        a.status = "active"
+                        a.last_error = None
+                        db.commit()
+            except Exception as e:
+                logger.error(f"Error syncing {acc['email']}: {e}")
+                with SessionLocal() as db:
+                    a = db.query(EmailAccount).filter_by(id=acc["id"]).first()
+                    if a:
+                        a.status = "auth_error"
+                        a.last_error = str(e)
+                        db.commit()
+
+        logger.info(f"✅ Sync complete ({mode_str}). New orders: {total_new}")
+    finally:
+        sync_state["percent"] = 100
+        sync_state["is_syncing"] = False
+
+    return total_new
+
+
+async def sync_account(acc: dict, use_ai_forced: bool = False) -> int:
+    """فحص حساب إيميل واحد مع تحديث ميزان التقدم"""
+    global sync_state
+    after_ts = None
+    if acc["last_synced"] and not use_ai_forced:
+        after_ts = int(acc["last_synced"].timestamp())
+
+    emails, updated_tokens = fetch_amazon_emails(
+        access_token=acc["access_token"],
+        refresh_token=acc["refresh_token"],
+        expiry=acc["token_expiry"],
+        after_timestamp=after_ts,
+    )
+
+    sync_state["total_emails"] += len(emails)
+    new_count = 0
+
+    with SessionLocal() as db:
+        for idx, email_data in enumerate(emails, 1):
+            sync_state["processed_emails"] += 1
+            if sync_state["total_emails"] > 0:
+                sync_state["percent"] = min(99, int((sync_state["processed_emails"] / sync_state["total_emails"]) * 100))
+            sync_state["current_subject"] = email_data.get("subject", "")[:50]
+
+            parsed_list = parse_order_email(email_data, use_ai_forced=use_ai_forced)
+            if not parsed_list:
+                continuecept Exception as e:
             logger.error(f"Error syncing {acc['email']}: {e}")
             with SessionLocal() as db:
                 a = db.query(EmailAccount).filter_by(id=acc["id"]).first()

@@ -51,6 +51,13 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 async function loadDashboard() {
   try {
+    // Check if sync is currently running
+    fetch(`${API}/api/sync/status`).then(r => r.json()).then(st => {
+      if (st && st.is_syncing && !syncPollInterval) {
+        startProgressPolling();
+      }
+    }).catch(() => {});
+
     const [stats, ordersRes] = await Promise.all([
       fetch(`${API}/api/stats`).then(r => r.json()),
       fetch(`${API}/api/orders?limit=5`).then(r => r.json()),
@@ -518,16 +525,60 @@ function saveTelegramSettings() {
   showToast("✅ تم الحفظ");
 }
 
-// ─── Sync ─────────────────────────────────────
+// ─── Sync & Progress ──────────────────────────
+
+let syncPollInterval = null;
+
+function startProgressPolling() {
+  const banner = document.getElementById("sync-progress-banner");
+  if (banner) banner.classList.remove("hidden");
+
+  if (syncPollInterval) clearInterval(syncPollInterval);
+
+  syncPollInterval = setInterval(async () => {
+    try {
+      const state = await fetch(`${API}/api/sync/status`).then(r => r.json());
+      if (state && state.is_syncing) {
+        if (banner) banner.classList.remove("hidden");
+        const titleEl = document.getElementById("sync-banner-title");
+        const percentEl = document.getElementById("sync-banner-percent");
+        const fillEl = document.getElementById("sync-progress-fill");
+        const subEl = document.getElementById("sync-banner-sub");
+
+        if (titleEl) titleEl.textContent = state.mode === "ai" ? "🤖 جاري التحليل الذكي الشامل عبر Gemini AI..." : "🔄 جاري المزامنة السريعة...";
+        if (percentEl) percentEl.textContent = `${state.percent}%`;
+        if (fillEl) fillEl.style.width = `${state.percent}%`;
+        if (subEl) {
+          subEl.textContent = state.total_emails > 0
+            ? `تم فحص ${state.processed_emails} من أصل ${state.total_emails} رسالة • ${state.current_subject || ''}`
+            : `جاري التراسل والجلب من أمازون...`;
+        }
+      } else {
+        // Sync finished
+        if (syncPollInterval) {
+          clearInterval(syncPollInterval);
+          syncPollInterval = null;
+        }
+        if (banner) banner.classList.add("hidden");
+        loadDashboard();
+      }
+    } catch(e) {
+      console.error("Sync poll error:", e);
+    }
+  }, 1200);
+}
 
 async function triggerSync() {
   const icon = document.getElementById("sync-icon")?.closest(".icon-btn");
   if (icon) icon.classList.add("spinning");
   try {
-    await fetch(`${API}/api/sync`, { method: "POST" });
-    showToast("🔄 بدأت المزامنة الفورية في الخلفية..");
-    setTimeout(loadDashboard, 3000);
-    setTimeout(loadDashboard, 8000);
+    const res = await fetch(`${API}/api/sync`, { method: "POST" }).then(r => r.json());
+    if (res.success === false) {
+      showToast(`⚠️ ${res.message}`, "error");
+    } else {
+      showToast("🔄 بدأت المزامنة الفورية في الخلفية..");
+    }
+    startProgressPolling();
   } catch(e) {
     showToast("❌ خطأ في المزامنة");
   } finally {
@@ -538,11 +589,13 @@ async function triggerSync() {
 async function triggerAISync() {
   showToast("🤖 بدأت المزامنة الذكية الشاملة في الخلفية...");
   try {
-    await fetch(`${API}/api/sync/ai`, { method: "POST" });
-    showToast("✨ جاري معالجة كافة الرسائل بواسطة Gemini AI.. ستتحدث الشاشة تلقائياً");
-    setTimeout(loadDashboard, 4000);
-    setTimeout(loadDashboard, 10000);
-    setTimeout(loadDashboard, 18000);
+    const res = await fetch(`${API}/api/sync/ai`, { method: "POST" }).then(r => r.json());
+    if (res.success === false) {
+      showToast(`⚠️ ${res.message}`, "error");
+    } else {
+      showToast("✨ جاري معالجة كافة الرسائل بواسطة Gemini AI..");
+    }
+    startProgressPolling();
   } catch(e) {
     showToast("❌ خطأ في المزامنة الذكية");
   }
