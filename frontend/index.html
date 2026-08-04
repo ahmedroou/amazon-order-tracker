@@ -162,6 +162,56 @@
   </div>
 </div>
 
+<!-- ─── SCREEN: Analytics ─── -->
+<div id="screen-analytics" class="screen">
+  <div class="top-bar">
+    <span class="top-bar__title">📊 تحليلات وتعداد المنتجات</span>
+  </div>
+
+  <div class="dashboard-content">
+    <!-- Period Filters -->
+    <div class="status-row">
+      <button class="filter-pill active" onclick="setAnalyticsPeriod(this, 'all')">الكل</button>
+      <button class="filter-pill" onclick="setAnalyticsPeriod(this, 'today')">اليوم</button>
+      <button class="filter-pill" onclick="setAnalyticsPeriod(this, '7days')">آخر 7 أيام</button>
+      <button class="filter-pill" onclick="setAnalyticsPeriod(this, '30days')">آخر 30 يوماً</button>
+      <button class="filter-pill" onclick="setAnalyticsPeriod(this, 'month')">هذا الشهر</button>
+    </div>
+
+    <!-- Analytics Stats Cards -->
+    <div class="stats-grid" style="margin-top: 12px;">
+      <div class="stat-card stat-card--blue">
+        <div class="stat-card__label">إجمالي القطع</div>
+        <div class="stat-card__value" id="analytics-total-items">—</div>
+      </div>
+      <div class="stat-card stat-card--purple">
+        <div class="stat-card__label">إجمالي التكلفة</div>
+        <div class="stat-card__value" id="analytics-total-spent">—</div>
+      </div>
+      <div class="stat-card stat-card--green">
+        <div class="stat-card__label">منتجات فريدة</div>
+        <div class="stat-card__value" id="analytics-unique-products">—</div>
+      </div>
+      <div class="stat-card stat-card--orange">
+        <div class="stat-card__label">قطع ملغية</div>
+        <div class="stat-card__value" id="analytics-cancelled-items">—</div>
+      </div>
+    </div>
+
+    <!-- Search in Analytics -->
+    <div class="search-box" style="margin-top: 16px;">
+      <input type="text" id="analytics-search" placeholder="🔍 ابحث عن منتج أو فئة (مثل: حفاضات، بسكويت)..." oninput="loadAnalytics()">
+    </div>
+
+    <!-- Top Products Breakdown -->
+    <div class="section-header" style="margin-top: 16px;">
+      <span>🏆 تعداد المنتجات المشتراة</span>
+    </div>
+
+    <div id="analytics-products-list" class="orders-list"></div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════
      MODALS
 ════════════════════════════════════════════════════════ -->
@@ -222,6 +272,13 @@
       <line x1="9" y1="16" x2="13" y2="16"/>
     </svg>
     <span>الطلبات</span>
+  </button>
+  <button class="nav-item" data-screen="analytics" onclick="navigate('analytics')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+      <line x1="6" y1="20" x2="6" y2="14"/>
+    </svg>
+    <span>التحليلات</span>
   </button>
   <button class="nav-item" data-screen="settings" onclick="navigate('settings')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

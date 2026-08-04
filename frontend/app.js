@@ -22,6 +22,7 @@ function navigate(screen) {
 
   if (screen === "dashboard") loadDashboard();
   if (screen === "orders")    loadOrders();
+  if (screen === "analytics") loadAnalytics();
   if (screen === "settings")  loadSettings();
 }
 
@@ -185,6 +186,7 @@ function renderOrderCard(o) {
       <div class="order-card__right">
         <span class="order-card__price">${formatPrice(o.purchase_price)}</span>
         ${profit}
+        <button class="btn-icon-danger" onclick="quickDeleteOrder(event, ${o.id})" title="حذف الطلب فوراً" style="margin-top:6px;padding:3px 6px;font-size:0.75rem;border-radius:6px">🗑️</button>
       </div>
     </button>
   `;
@@ -581,4 +583,71 @@ function showToast(msg, type = "info") {
   el.className = `toast ${type}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.add("hidden"), 3000);
+}
+
+function quickDeleteOrder(event, orderId) {
+  event.stopPropagation();
+  if (confirm("هل تريد حذف هذا الطلب فوراً؟")) {
+    deleteOrder(orderId);
+  }
+}
+
+// ─── Analytics ────────────────────────────────
+
+let currentAnalyticsPeriod = "all";
+
+function setAnalyticsPeriod(btn, period) {
+  document.querySelectorAll("#screen-analytics .filter-pill").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  currentAnalyticsPeriod = period;
+  loadAnalytics();
+}
+
+async function loadAnalytics() {
+  const searchVal = document.getElementById("analytics-search")?.value?.trim() || "";
+  try {
+    const url = `${API}/api/analytics?period=${currentAnalyticsPeriod}&search=${encodeURIComponent(searchVal)}`;
+    const data = await fetch(url).then(r => r.json());
+
+    document.getElementById("analytics-total-items").textContent = data.total_items;
+    document.getElementById("analytics-total-spent").textContent = formatPrice(data.total_spent);
+    document.getElementById("analytics-unique-products").textContent = data.unique_products;
+    document.getElementById("analytics-cancelled-items").textContent = data.status_breakdown?.cancelled || 0;
+
+    const container = document.getElementById("analytics-products-list");
+    if (!container) return;
+
+    if (!data.top_products || !data.top_products.length) {
+      container.innerHTML = `<div class="empty-state">
+        <div class="empty-state__icon">📊</div>
+        <div class="empty-state__title">لا توجد بيانات للفترة المحددة</div>
+      </div>`;
+      return;
+    }
+
+    container.innerHTML = data.top_products.map(p => {
+      const img = p.product_image
+        ? `<img src="${p.product_image}" class="order-card__img" alt="" loading="lazy" onerror="this.outerHTML='<div class=\\'order-card__img\\'>📦</div>'">`
+        : `<div class="order-card__img">📦</div>`;
+
+      return `
+        <div class="order-card" style="cursor:default">
+          ${img}
+          <div class="order-card__info">
+            <div class="order-card__name">${p.product_name}</div>
+            <div class="order-card__meta">
+              <span class="badge badge--shipped" style="background:var(--accent);color:#fff">تم الشراء ${p.count} مرات</span>
+            </div>
+          </div>
+          <div class="order-card__right">
+            <span class="order-card__price">${formatPrice(p.total_cost)}</span>
+            <span style="font-size:0.7rem;color:var(--text-muted);margin-top:2px">المتوسط: ${formatPrice(p.total_cost / p.count)}</span>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+  } catch(e) {
+    console.error("Analytics load error:", e);
+  }
 }

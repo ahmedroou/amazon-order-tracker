@@ -196,9 +196,82 @@ async def get_orders(
         orders = q.offset(offset).limit(limit).all()
 
         return {
-        "total": total,
-        "orders": [serialize_order(o) for o in orders]
-    }
+            "total": total,
+            "orders": [serialize_order(o) for o in orders]
+        }
+
+
+@app.get("/api/analytics")
+async def get_analytics(
+    period: Optional[str] = "all",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    account_id: Optional[int] = None,
+    search: Optional[str] = None
+):
+    """تحليلات وتعداد المنتجات حسب الفترة الزمنية والبحث"""
+    with SessionLocal() as db:
+        q = db.query(Order)
+        if account_id:
+            q = q.filter(Order.account_id == account_id)
+        
+        now = datetime.utcnow()
+        if period == "today":
+            q = q.filter(Order.created_at >= now.replace(hour=0, minute=0, second=0))
+        elif period == "7days":
+            q = q.filter(Order.created_at >= now - timedelta(days=7))
+        elif period == "30days":
+            q = q.filter(Order.created_at >= now - timedelta(days=30))
+        elif period == "month":
+            q = q.filter(Order.created_at >= now.replace(day=1, hour=0, minute=0, second=0))
+        elif period == "custom" and start_date and end_date:
+            try:
+                s_dt = datetime.fromisoformat(start_date)
+                e_dt = datetime.fromisoformat(end_date)
+                q = q.filter(Order.created_at >= s_dt, Order.created_at <= e_dt)
+            except Exception:
+                pass
+
+        if search:
+            q = q.filter(Order.product_name.ilike(f"%{search}%"))
+
+        orders = q.all()
+
+        total_items = len(orders)
+        total_spent = sum((o.purchase_price or 0.0) for o in orders)
+        status_counts = {}
+        products_map = {}
+
+        for o in orders:
+            status_counts[o.status] = status_counts.get(o.status, 0) + 1
+            
+            p_name = o.product_name or "منتج بدون اسم"
+            if p_name not in products_map:
+                products_map[p_name] = {
+                    "product_name": p_name,
+                    "product_image": o.product_image,
+                    "asin": o.asin,
+                    "count": 0,
+                    "total_cost": 0.0,
+                    "statuses": {},
+                    "last_purchased": o.order_date.isoformat() if o.order_date else o.created_at.isoformat()
+                }
+            
+            products_map[p_name]["count"] += 1
+            products_map[p_name]["total_cost"] += (o.purchase_price or 0.0)
+            st = o.status
+            products_map[p_name]["statuses"][st] = products_map[p_name]["statuses"].get(st, 0) + 1
+
+        top_products = sorted(products_map.values(), key=lambda x: x["count"], reverse=True)
+
+        return {
+            "period": period,
+            "total_items": total_items,
+            "total_spent": round(total_spent, 2),
+            "unique_products": len(products_map),
+            "status_breakdown": status_counts,
+            "top_products": top_products
+        }
 
 
 @app.get("/api/orders/{order_id}/track")
@@ -418,26 +491,67 @@ async def sync_account(acc: dict, use_ai_forced: bool = False) -> int:
                 parsed_status = parsed.get("status", "pending")
                 parsed_product_name = parsed.get("product_name")
                 parsed_notes = parsed.get("notes")
+                parsed_asin = parsed.get("asin")
 
-                # جلب جميع القطع المرتبطة برقم الطلب
+                # جلب جميع القطع المرتبطة برقم الطلب هذا فقط
                 existing_items = db.query(Order).filter_by(amazon_order_id=order_id).all()
 
+                matched_item = None
                 if existing_items:
-                    # تحديث الحالة
-                    items_to_update = []
-                    
-                    if parsed_product_name:
-                        # محاولة إيجاد القطعة المحددة باسم المنتج
+                    if parsed_asin:
                         for item in existing_items:
-                            if item.product_name and parsed_product_name.lower() in item.product_name.lower():
-                                items_to_update.append(item)
+                            if item.asin and item.asin.upper() == parsed_asin.upper():
+                                matched_item = item
                                 break
                     
-                    # إذا لم نجد قطعة محددة أو لم يكن هناك اسم منتج (إلغاء للطلب بالكامل)، نحدث الكل
-                    if not items_to_update:
-                        items_to_update = existing_items
+                    if not matched_item and parsed_product_name:
+                        for item in existing_items:
+                            if item.product_name:
+                                name_a = parsed_product_name.lower().strip()
+                                name_b = item.product_name.lower().strip()
+                                if name_a in name_b or name_b in name_a:
+                                    matched_item = item
+                                    break
 
-                    for existing in items_to_update:
+                if matched_item:
+                    # تحديث القطعة الموجودة لعدم تكرارها
+                    status_changed = False
+                    if parsed_status != matched_item.status and parsed_status != "pending":
+                        old_status = matched_item.status
+                        matched_item.status = parsed_status
+                        status_changed = True
+                        db.add(OrderStatusHistory(
+                            order_id=matched_item.id,
+                            status=parsed_status,
+                            source="email"
+                        ))
+                    
+                    if parsed_notes:
+                        matched_item.notes = parsed_notes
+                    if parsed.get("tracking_number"):
+                        matched_item.tracking_number = parsed.get("tracking_number")
+                    if parsed.get("carrier"):
+                        matched_item.carrier = parsed.get("carrier")
+                    if parsed.get("tracking_url"):
+                        matched_item.tracking_url = parsed.get("tracking_url")
+                    if parsed.get("estimated_delivery"):
+                        matched_item.estimated_delivery = parsed.get("estimated_delivery")
+                    if parsed.get("purchase_price") is not None:
+                        matched_item.purchase_price = parsed.get("purchase_price")
+                    if parsed.get("product_image") and not matched_item.product_image:
+                        matched_item.product_image = parsed.get("product_image")
+
+                    matched_item.updated_at = datetime.utcnow()
+                    db.commit()
+
+                    if status_changed:
+                        await notify_status_change(
+                            {"product_name": matched_item.product_name, "amazon_order_id": order_id},
+                            old_status, parsed_status
+                        )
+                elif existing_items and not parsed_product_name:
+                    # تحديث عام لكل قطع الطلب إذا لم يُحدد اسم منتج في الإيميل
+                    for existing in existing_items:
                         status_changed = False
                         if parsed_status != existing.status and parsed_status != "pending":
                             old_status = existing.status
@@ -448,26 +562,23 @@ async def sync_account(acc: dict, use_ai_forced: bool = False) -> int:
                                 status=parsed_status,
                                 source="email"
                             ))
-                        
                         if parsed_notes:
                             existing.notes = parsed_notes
-
                         if status_changed or parsed_notes:
                             existing.updated_at = datetime.utcnow()
                             db.commit()
-
                         if status_changed:
                             await notify_status_change(
                                 {"product_name": existing.product_name, "amazon_order_id": order_id},
                                 old_status, parsed_status
                             )
                 else:
-                    # طلب جديد (أو قطعة جديدة) — حفظ كل البيانات
+                    # قطعة جديدة تماماً (أو طلب جديد) — حفظ البيانات
                     order = Order(
                         account_id=acc["id"],
                         amazon_order_id=order_id,
                         product_name=parsed_product_name,
-                        asin=parsed.get("asin"),
+                        asin=parsed_asin,
                         product_image=parsed.get("product_image"),
                         product_url=parsed.get("product_url"),
                         purchase_price=parsed.get("purchase_price"),
