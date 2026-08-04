@@ -505,46 +505,6 @@ async def sync_all_accounts(use_ai_forced: bool = False) -> int:
 
 
 async def sync_account(acc: dict, use_ai_forced: bool = False) -> int:
-    """فحص حساب إيميل واحد مع تحديث ميزان التقدم"""
-    global sync_state
-    after_ts = None
-    if acc["last_synced"] and not use_ai_forced:
-        after_ts = int(acc["last_synced"].timestamp())
-
-    emails, updated_tokens = fetch_amazon_emails(
-        access_token=acc["access_token"],
-        refresh_token=acc["refresh_token"],
-        expiry=acc["token_expiry"],
-        after_timestamp=after_ts,
-    )
-
-    sync_state["total_emails"] += len(emails)
-    new_count = 0
-
-    with SessionLocal() as db:
-        for idx, email_data in enumerate(emails, 1):
-            sync_state["processed_emails"] += 1
-            if sync_state["total_emails"] > 0:
-                sync_state["percent"] = min(99, int((sync_state["processed_emails"] / sync_state["total_emails"]) * 100))
-            sync_state["current_subject"] = email_data.get("subject", "")[:50]
-
-            parsed_list = parse_order_email(email_data, use_ai_forced=use_ai_forced)
-            if not parsed_list:
-                continuecept Exception as e:
-            logger.error(f"Error syncing {acc['email']}: {e}")
-            with SessionLocal() as db:
-                a = db.query(EmailAccount).filter_by(id=acc["id"]).first()
-                if a:
-                    a.status = "auth_error"
-                    a.last_error = str(e)
-                    db.commit()
-
-    logger.info(f"✅ Sync complete ({mode_str}). New orders: {total_new}")
-    return total_new
-
-
-
-async def sync_account(acc: dict, use_ai_forced: bool = False) -> int:
     """فحص حساب إيميل واحد"""
     after_ts = None
     if acc["last_synced"] and not use_ai_forced:
@@ -557,10 +517,17 @@ async def sync_account(acc: dict, use_ai_forced: bool = False) -> int:
         after_timestamp=after_ts,
     )
 
+    global sync_state
+    sync_state["total_emails"] += len(emails)
     new_count = 0
 
     with SessionLocal() as db:
-        for email_data in emails:
+        for idx, email_data in enumerate(emails, 1):
+            sync_state["processed_emails"] += 1
+            if sync_state["total_emails"] > 0:
+                sync_state["percent"] = min(99, int((sync_state["processed_emails"] / sync_state["total_emails"]) * 100))
+            sync_state["current_subject"] = email_data.get("subject", "")[:50]
+
             parsed_list = parse_order_email(email_data, use_ai_forced=use_ai_forced)
             if not parsed_list:
                 continue
