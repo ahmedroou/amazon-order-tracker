@@ -1,0 +1,14 @@
+# Amazon Order Tracker — .gitignore
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.sqlite3
+.DS_Store
+node_modules/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/

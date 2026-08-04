@@ -1,0 +1,459 @@
+/* ══════════════════════════════════════════════
+   Amazon Order Tracker — App Logic (SPA)
+══════════════════════════════════════════════ */
+
+const API = "";  // same origin
+let allOrders = [];
+let activeStatusFilter = "";
+let currentDetailId = null;
+let previousScreen = "dashboard";
+
+// ─── Navigation ─────────────────────────────
+
+function navigate(screen) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+
+  const el = document.getElementById(`screen-${screen}`);
+  if (el) el.classList.add("active");
+
+  const navEl = document.querySelector(`.nav-item[data-screen="${screen}"]`);
+  if (navEl) navEl.classList.add("active");
+
+  if (screen === "dashboard") loadDashboard();
+  if (screen === "orders")    loadOrders();
+  if (screen === "settings")  loadSettings();
+}
+
+function goBack() {
+  navigate(previousScreen || "orders");
+}
+
+// ─── Init ────────────────────────────────────
+
+window.addEventListener("DOMContentLoaded", async () => {
+  navigate("dashboard");
+
+  // Check if came back from OAuth
+  const params = new URLSearchParams(location.search);
+  if (params.get("connected")) {
+    showToast("✅ تم ربط Gmail بنجاح!");
+    history.replaceState({}, "", "/");
+  }
+  if (params.get("error")) {
+    showToast("❌ فشل ربط Gmail. حاول مجدداً.", "error");
+    history.replaceState({}, "", "/");
+  }
+});
+
+// ─── Dashboard ───────────────────────────────
+
+async function loadDashboard() {
+  try {
+    const [stats, ordersRes] = await Promise.all([
+      fetch(`${API}/api/stats`).then(r => r.json()),
+      fetch(`${API}/api/orders?limit=5`).then(r => r.json()),
+    ]);
+
+    // Stats cards
+    document.getElementById("stat-total").textContent = stats.total_orders;
+    document.getElementById("stat-cost").textContent = formatPrice(stats.total_cost);
+    document.getElementById("stat-profit").textContent = formatPrice(stats.total_profit);
+    document.getElementById("stat-delivered").textContent = stats.by_status?.delivered || 0;
+
+    // Status pills
+    const pillsEl = document.getElementById("status-pills");
+    const statusDef = [
+      { k: "pending",   label: "⏳ انتظار"  },
+      { k: "shipped",   label: "🚚 شحن"      },
+      { k: "delivered", label: "✅ وصل"      },
+      { k: "cancelled", label: "❌ ملغى"     },
+      { k: "returned",  label: "↩️ مُعاد"    },
+    ];
+    pillsEl.innerHTML = statusDef.map(s => `
+      <div class="status-pill">
+        ${s.label} <span class="count">${stats.by_status?.[s.k] || 0}</span>
+      </div>
+    `).join("");
+
+    // Email breakdown
+    const emailEl = document.getElementById("email-breakdown");
+    if (stats.by_email?.length) {
+      emailEl.innerHTML = stats.by_email.map(e => `
+        <div class="email-card">
+          <div class="email-card__avatar">${getInitial(e.email)}</div>
+          <div class="email-card__info">
+            <div class="email-card__email">${e.email}</div>
+            <div class="email-card__meta">إنفاق: ${formatPrice(e.spent)}</div>
+          </div>
+          <div class="email-card__badge">${e.count} طلب</div>
+        </div>
+      `).join("");
+    } else {
+      emailEl.innerHTML = `<div class="empty-state">
+        <div class="empty-state__icon">📧</div>
+        <div class="empty-state__title">لا يوجد حسابات مربوطة</div>
+        <div class="empty-state__desc">اذهب للإعدادات لربط Gmail</div>
+      </div>`;
+    }
+
+    // Recent orders
+    const recentEl = document.getElementById("recent-orders");
+    if (ordersRes.orders?.length) {
+      recentEl.innerHTML = ordersRes.orders.map(o => renderOrderCard(o)).join("");
+    } else {
+      recentEl.innerHTML = `<div class="empty-state">
+        <div class="empty-state__icon">📦</div>
+        <div class="empty-state__title">لا توجد طلبات بعد</div>
+        <div class="empty-state__desc">ارتبط بـ Gmail وستظهر طلباتك تلقائياً</div>
+      </div>`;
+    }
+
+  } catch(e) {
+    console.error("Dashboard load error:", e);
+  }
+}
+
+// ─── Orders ──────────────────────────────────
+
+let statusFilter = "";
+
+async function loadOrders() {
+  try {
+    const url = statusFilter
+      ? `${API}/api/orders?status=${statusFilter}&limit=200`
+      : `${API}/api/orders?limit=200`;
+    const res = await fetch(url).then(r => r.json());
+    allOrders = res.orders || [];
+    renderOrdersList();
+  } catch(e) {
+    console.error("Orders load error:", e);
+  }
+}
+
+function renderOrdersList() {
+  const search = document.getElementById("order-search")?.value?.toLowerCase() || "";
+  const container = document.getElementById("orders-list-container");
+  if (!container) return;
+
+  let filtered = allOrders;
+  if (search) {
+    filtered = filtered.filter(o =>
+      (o.product_name || "").toLowerCase().includes(search) ||
+      (o.amazon_order_id || "").toLowerCase().includes(search) ||
+      (o.to_email || "").toLowerCase().includes(search)
+    );
+  }
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-state__icon">🔍</div>
+      <div class="empty-state__title">لا توجد نتائج</div>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(o => renderOrderCard(o)).join("");
+}
+
+function renderOrderCard(o) {
+  const img = o.product_image
+    ? `<img src="${o.product_image}" class="order-card__img" alt="" loading="lazy" onerror="this.outerHTML='<div class=\\'order-card__img\\'>📦</div>'">`
+    : `<div class="order-card__img">📦</div>`;
+
+  const profit = o.profit !== null && o.profit !== undefined
+    ? `<span class="order-card__profit ${o.profit >= 0 ? 'positive' : 'negative'}">
+        ${o.profit >= 0 ? '+' : ''}${formatPrice(o.profit)}
+       </span>`
+    : "";
+
+  const date = o.order_date ? formatDate(o.order_date) : "";
+
+  return `
+    <button class="order-card" onclick="openDetail(${o.id})">
+      ${img}
+      <div class="order-card__info">
+        <div class="order-card__name">${o.product_name || 'منتج بدون اسم'}</div>
+        <div class="order-card__meta">
+          <span class="badge badge--${o.status}">${o.status_ar || o.status}</span>
+          <span class="order-card__email">${o.to_email || ''}</span>
+        </div>
+        ${date ? `<div style="font-size:0.68rem;color:var(--text-muted);margin-top:3px">${date}</div>` : ""}
+      </div>
+      <div class="order-card__right">
+        <span class="order-card__price">${formatPrice(o.purchase_price)}</span>
+        ${profit}
+      </div>
+    </button>
+  `;
+}
+
+function filterOrders() {
+  renderOrdersList();
+}
+
+function setStatusFilter(btn, status) {
+  document.querySelectorAll(".filter-pill").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  statusFilter = status;
+  loadOrders();
+}
+
+// ─── Order Detail ─────────────────────────────
+
+async function openDetail(orderId) {
+  previousScreen = document.querySelector(".screen.active")?.id?.replace("screen-", "") || "orders";
+  currentDetailId = orderId;
+
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById("screen-detail").classList.add("active");
+
+  try {
+    const order = await fetch(`${API}/api/orders/${orderId}`).then(r => r.json());
+    renderDetail(order);
+  } catch(e) {
+    console.error("Detail load error:", e);
+  }
+}
+
+function renderDetail(o) {
+  const img = o.product_image
+    ? `<img src="${o.product_image}" class="detail-hero__img" style="width:80px;height:80px" alt="" onerror="this.outerHTML='<div class=\\'detail-hero__img\\'>📦</div>'">`
+    : `<div class="detail-hero__img">📦</div>`;
+
+  const profitCard = (o.profit !== null && o.profit !== undefined && o.sale_price)
+    ? `<div class="profit-card ${o.profit < 0 ? 'loss' : ''}">
+        <div class="profit-card__label">${o.profit >= 0 ? '💰 الربح الصافي' : '📉 الخسارة'}</div>
+        <div class="profit-card__value">${o.profit >= 0 ? '+' : ''}${formatPrice(o.profit)}</div>
+       </div>` : "";
+
+  const history = (o.history || []).map(h => `
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-text">
+        <div class="timeline-status">${statusLabel(h.status)}</div>
+        <div class="timeline-date">${formatDate(h.changed_at)} • ${h.source === 'email' ? 'تلقائي' : 'يدوي'}</div>
+      </div>
+    </div>
+  `).join("");
+
+  document.getElementById("detail-content").innerHTML = `
+    <div class="detail-hero">
+      ${img}
+      <div class="detail-hero__name">${o.product_name || 'منتج بدون اسم'}</div>
+      <span class="detail-hero__id">${o.amazon_order_id || 'بدون رقم طلب'}</span>
+      <div style="margin-top:10px">
+        <span class="badge badge--${o.status}">${o.status_ar || o.status}</span>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="info-row">
+        <span class="info-row__label">📧 الإيميل المستخدم</span>
+        <span class="info-row__value" style="direction:ltr">${o.to_email || '—'}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-row__label">💰 سعر الشراء</span>
+        <span class="info-row__value">${formatPrice(o.purchase_price)}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-row__label">🏷️ سعر البيع</span>
+        <span class="info-row__value ${o.sale_price ? '' : 'red'}">${o.sale_price ? formatPrice(o.sale_price) : 'لم يُحدد'}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-row__label">📅 تاريخ الطلب</span>
+        <span class="info-row__value">${o.order_date ? formatDate(o.order_date) : '—'}</span>
+      </div>
+      ${o.notes ? `<div class="info-row">
+        <span class="info-row__label">📝 ملاحظات</span>
+        <span class="info-row__value">${o.notes}</span>
+      </div>` : ""}
+    </div>
+
+    ${profitCard}
+
+    <div class="action-row">
+      <button class="btn btn--primary" style="flex:1" onclick="openEditModal(${o.id})">✏️ تعديل</button>
+      ${o.product_url ? `<a href="${o.product_url}" target="_blank" class="btn btn--secondary">🔗 أمازون</a>` : ""}
+    </div>
+
+    ${history ? `
+      <div class="info-card" style="padding:14px 16px">
+        <div style="font-size:0.85rem;font-weight:700;margin-bottom:12px">🕐 تاريخ التحديثات</div>
+        <div class="timeline">${history}</div>
+      </div>
+    ` : ""}
+  `;
+
+  // Delete button
+  document.getElementById("detail-delete-btn").onclick = () => deleteOrder(o.id);
+}
+
+// ─── Edit Modal ───────────────────────────────
+
+async function openEditModal(orderId) {
+  const order = await fetch(`${API}/api/orders/${orderId}`).then(r => r.json());
+
+  document.getElementById("edit-order-id").value = orderId;
+  document.getElementById("edit-product-name").value = order.product_name || "";
+  document.getElementById("edit-sale-price").value = order.sale_price || "";
+  document.getElementById("edit-status").value = order.status || "pending";
+  document.getElementById("edit-notes").value = order.notes || "";
+
+  document.getElementById("modal-edit").classList.remove("hidden");
+}
+
+function closeModal(name) {
+  document.getElementById(`modal-${name}`).classList.add("hidden");
+}
+
+async function saveOrderEdit() {
+  const id = document.getElementById("edit-order-id").value;
+  const payload = {
+    product_name: document.getElementById("edit-product-name").value || null,
+    sale_price: parseFloat(document.getElementById("edit-sale-price").value) || null,
+    status: document.getElementById("edit-status").value,
+    notes: document.getElementById("edit-notes").value || null,
+  };
+
+  try {
+    await fetch(`${API}/api/orders/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    closeModal("edit");
+    showToast("✅ تم الحفظ");
+    openDetail(parseInt(id));
+  } catch(e) {
+    showToast("❌ خطأ في الحفظ", "error");
+  }
+}
+
+async function deleteOrder(orderId) {
+  if (!confirm("هل تريد حذف هذا الطلب نهائياً؟")) return;
+  try {
+    await fetch(`${API}/api/orders/${orderId}`, { method: "DELETE" });
+    showToast("✅ تم الحذف");
+    goBack();
+  } catch(e) {
+    showToast("❌ خطأ في الحذف");
+  }
+}
+
+// ─── Settings ─────────────────────────────────
+
+async function loadSettings() {
+  try {
+    const accounts = await fetch(`${API}/api/accounts`).then(r => r.json());
+    const el = document.getElementById("accounts-list");
+
+    if (!accounts.length) {
+      el.innerHTML = `<div style="font-size:0.8rem;color:var(--text-muted);padding:8px 0">لا توجد حسابات مربوطة</div>`;
+      return;
+    }
+
+    el.innerHTML = accounts.map(a => `
+      <div class="account-item">
+        <div>
+          <div class="account-item__email">${a.email}</div>
+          <div class="account-item__meta">
+            ${a.order_count} طلب
+            ${a.last_synced ? ' • آخر فحص: ' + formatDate(a.last_synced) : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn--secondary" style="padding:5px 10px;font-size:0.75rem" onclick="syncAccount(${a.id})">🔄</button>
+          <button class="btn-icon-danger" onclick="deleteAccount(${a.id})">حذف</button>
+        </div>
+      </div>
+    `).join("");
+  } catch(e) {
+    console.error("Settings load error:", e);
+  }
+}
+
+async function deleteAccount(id) {
+  if (!confirm("هل تريد إلغاء ربط هذا الحساب وحذف طلباته؟")) return;
+  try {
+    await fetch(`${API}/api/accounts/${id}`, { method: "DELETE" });
+    showToast("✅ تم الحذف");
+    loadSettings();
+  } catch(e) {
+    showToast("❌ خطأ");
+  }
+}
+
+async function syncAccount(id) {
+  showToast("🔄 جاري المزامنة...");
+  try {
+    const res = await fetch(`${API}/api/accounts/${id}/sync`, { method: "POST" }).then(r => r.json());
+    showToast(`✅ اكتملت المزامنة — ${res.new_orders} طلب جديد`);
+    loadSettings();
+  } catch(e) {
+    showToast("❌ خطأ في المزامنة");
+  }
+}
+
+function saveTelegramSettings() {
+  // حفظ في localStorage فقط (إعداد خفيف)
+  const chatId = document.getElementById("tg-chat-id").value;
+  localStorage.setItem("tg_chat_id", chatId);
+  showToast("✅ تم الحفظ");
+}
+
+// ─── Sync ─────────────────────────────────────
+
+async function triggerSync() {
+  const icon = document.getElementById("sync-icon").closest(".icon-btn");
+  icon.classList.add("spinning");
+  try {
+    const res = await fetch(`${API}/api/sync`, { method: "POST" }).then(r => r.json());
+    showToast(`✅ تمت المزامنة — ${res.new_orders_found || 0} طلب جديد`);
+    loadDashboard();
+  } catch(e) {
+    showToast("❌ خطأ في المزامنة");
+  } finally {
+    icon.classList.remove("spinning");
+  }
+}
+
+// ─── Helpers ──────────────────────────────────
+
+function formatPrice(val) {
+  if (val === null || val === undefined || val === "") return "—";
+  return `${parseFloat(val).toLocaleString("ar-SA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  try {
+    return new Date(dateStr).toLocaleDateString("ar-SA", {
+      year: "numeric", month: "short", day: "numeric"
+    });
+  } catch { return dateStr; }
+}
+
+function getInitial(email) {
+  return (email || "?")[0].toUpperCase();
+}
+
+function statusLabel(status) {
+  const map = {
+    pending: "⏳ قيد الانتظار",
+    shipped: "🚚 تم الشحن",
+    delivered: "✅ تم التوصيل",
+    returned: "↩️ مُعاد",
+    cancelled: "❌ مُلغى",
+  };
+  return map[status] || status;
+}
+
+let toastTimer;
+function showToast(msg, type = "info") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = `toast ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add("hidden"), 3000);
+}

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="description" content="لوحة تتبع طلبات أمازون الاحترافية">
+  <meta name="theme-color" content="#0f0c29">
+  <title>Amazon Tracker — لوحة الطلبات</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCREENS
+════════════════════════════════════════════════════════ -->
+
+<!-- ─── SCREEN: Dashboard ─── -->
+<div id="screen-dashboard" class="screen active">
+  <div class="top-bar">
+    <span class="top-bar__title">📦 Amazon Tracker</span>
+    <button class="icon-btn" onclick="triggerSync()" title="مزامنة الآن">
+      <svg id="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M23 4v6h-6M1 20v-6h6"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="dashboard-content">
+
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card stat-card--blue">
+        <div class="stat-card__label">إجمالي الطلبات</div>
+        <div class="stat-card__value" id="stat-total">—</div>
+      </div>
+      <div class="stat-card stat-card--purple">
+        <div class="stat-card__label">إجمالي الإنفاق</div>
+        <div class="stat-card__value" id="stat-cost">—</div>
+      </div>
+      <div class="stat-card stat-card--green">
+        <div class="stat-card__label">إجمالي الأرباح</div>
+        <div class="stat-card__value" id="stat-profit">—</div>
+      </div>
+      <div class="stat-card stat-card--orange">
+        <div class="stat-card__label">تم التوصيل</div>
+        <div class="stat-card__value" id="stat-delivered">—</div>
+      </div>
+    </div>
+
+    <!-- Status Pills -->
+    <div class="status-row" id="status-pills"></div>
+
+    <!-- Email Breakdown -->
+    <div class="section-header">
+      <span>📧 الحسابات المربوطة</span>
+    </div>
+    <div id="email-breakdown" class="email-cards"></div>
+
+    <!-- Recent Orders -->
+    <div class="section-header">
+      <span>🕐 آخر الطلبات</span>
+      <button class="text-btn" onclick="navigate('orders')">عرض الكل</button>
+    </div>
+    <div id="recent-orders" class="orders-list"></div>
+
+  </div>
+</div>
+
+<!-- ─── SCREEN: Orders ─── -->
+<div id="screen-orders" class="screen">
+  <div class="top-bar">
+    <span class="top-bar__title">📋 كل الطلبات</span>
+    <div class="search-wrap">
+      <input type="search" id="order-search" placeholder="بحث..." class="search-input" oninput="filterOrders()">
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <button class="filter-pill active" data-status="" onclick="setStatusFilter(this, '')">الكل</button>
+    <button class="filter-pill" data-status="pending" onclick="setStatusFilter(this, 'pending')">⏳ انتظار</button>
+    <button class="filter-pill" data-status="shipped" onclick="setStatusFilter(this, 'shipped')">🚚 شحن</button>
+    <button class="filter-pill" data-status="delivered" onclick="setStatusFilter(this, 'delivered')">✅ وصل</button>
+    <button class="filter-pill" data-status="cancelled" onclick="setStatusFilter(this, 'cancelled')">❌ ملغى</button>
+  </div>
+
+  <div id="orders-list-container" class="orders-list padded"></div>
+</div>
+
+<!-- ─── SCREEN: Order Detail ─── -->
+<div id="screen-detail" class="screen">
+  <div class="top-bar">
+    <button class="icon-btn" onclick="goBack()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 18l6-6-6-6"/>
+      </svg>
+    </button>
+    <span class="top-bar__title">تفاصيل الطلب</span>
+    <button class="icon-btn danger" id="detail-delete-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"/>
+        <path d="M19 6l-1 14H6L5 6"/>
+        <path d="M10 11v6M14 11v6"/>
+        <path d="M9 6V4h6v2"/>
+      </svg>
+    </button>
+  </div>
+  <div id="detail-content" class="detail-content"></div>
+</div>
+
+<!-- ─── SCREEN: Settings ─── -->
+<div id="screen-settings" class="screen">
+  <div class="top-bar">
+    <span class="top-bar__title">⚙️ الإعدادات</span>
+  </div>
+
+  <div class="settings-content">
+
+    <div class="settings-section">
+      <div class="settings-section__title">🔗 ربط حساب Gmail</div>
+      <div class="settings-section__desc">
+        اربط حساب Gmail لمراقبة رسائل أمازون تلقائياً. يطلب صلاحية القراءة فقط.
+      </div>
+      <a href="/auth/gmail" class="btn btn--primary btn--full">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+        </svg>
+        ربط حساب Gmail
+      </a>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section__title">📧 الحسابات المربوطة</div>
+      <div id="accounts-list"></div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section__title">🔔 تنبيهات تيليجرام</div>
+      <div class="settings-section__desc">
+        أدخل Chat ID الخاص بك في تيليجرام لاستقبال تنبيهات الطلبات.
+      </div>
+      <input type="text" id="tg-chat-id" placeholder="Chat ID" class="form-input">
+      <button class="btn btn--secondary btn--full" onclick="saveTelegramSettings()">حفظ</button>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section__title">ℹ️ عن التطبيق</div>
+      <div class="settings-section__desc">
+        Amazon Order Tracker v1.0<br>
+        مراقبة تلقائية لطلبات أمازون عبر Gmail
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     MODALS
+════════════════════════════════════════════════════════ -->
+
+<!-- Edit Order Modal -->
+<div id="modal-edit" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal__header">
+      <span>تعديل الطلب</span>
+      <button class="icon-btn" onclick="closeModal('edit')">✕</button>
+    </div>
+    <div class="modal__body">
+      <input type="hidden" id="edit-order-id">
+
+      <label class="form-label">اسم المنتج</label>
+      <input type="text" id="edit-product-name" class="form-input" placeholder="اسم المنتج">
+
+      <label class="form-label">سعر البيع (ر.س)</label>
+      <input type="number" id="edit-sale-price" class="form-input" placeholder="0.00" step="0.01">
+
+      <label class="form-label">حالة الطلب</label>
+      <select id="edit-status" class="form-input">
+        <option value="pending">⏳ قيد الانتظار</option>
+        <option value="shipped">🚚 تم الشحن</option>
+        <option value="delivered">✅ تم التوصيل</option>
+        <option value="returned">↩️ مُعاد</option>
+        <option value="cancelled">❌ مُلغى</option>
+      </select>
+
+      <label class="form-label">ملاحظات</label>
+      <textarea id="edit-notes" class="form-input form-textarea" placeholder="أي ملاحظات..."></textarea>
+    </div>
+    <div class="modal__footer">
+      <button class="btn btn--ghost" onclick="closeModal('edit')">إلغاء</button>
+      <button class="btn btn--primary" onclick="saveOrderEdit()">حفظ التعديلات</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- ═══════════════════════════════════════════════════════
+     BOTTOM NAV
+════════════════════════════════════════════════════════ -->
+<nav class="bottom-nav">
+  <button class="nav-item active" data-screen="dashboard" onclick="navigate('dashboard')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+      <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+    </svg>
+    <span>الرئيسية</span>
+  </button>
+  <button class="nav-item" data-screen="orders" onclick="navigate('orders')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+      <rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/>
+      <line x1="9" y1="16" x2="13" y2="16"/>
+    </svg>
+    <span>الطلبات</span>
+  </button>
+  <button class="nav-item" data-screen="settings" onclick="navigate('settings')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+    <span>الإعدادات</span>
+  </button>
+</nav>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
