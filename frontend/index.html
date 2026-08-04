@@ -21,12 +21,17 @@
 <div id="screen-dashboard" class="screen active">
   <div class="top-bar">
     <span class="top-bar__title">📦 Amazon Tracker</span>
-    <button class="icon-btn" onclick="triggerSync()" title="مزامنة الآن">
-      <svg id="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M23 4v6h-6M1 20v-6h6"/>
-        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-      </svg>
-    </button>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn btn--secondary" onclick="triggerAISync()" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 20px; display: flex; align-items: center; gap: 4px;">
+        <span>🤖</span> <span>مزامنة AI الشاملة</span>
+      </button>
+      <button class="icon-btn" onclick="triggerSync()" title="مزامنة سريعة">
+        <svg id="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+    </div>
   </div>
 
   <div class="dashboard-content">

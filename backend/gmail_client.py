@@ -141,6 +141,16 @@ def fetch_amazon_emails(access_token: str, refresh_token: str, expiry: Optional[
             except Exception as e:
                 logger.error(f"Error fetching message {msg_ref['id']}: {e}")
 
+        # فرز الرسائل تتابعياً من الأقدم إلى الأحدث لضمان تطبيق التحديثات بالحسبان الصحيح
+        from email.utils import parsedate_to_datetime
+        def safe_parse_date(e):
+            try:
+                return parsedate_to_datetime(e.get("date", "")).replace(tzinfo=None)
+            except Exception:
+                return datetime.min
+
+        parsed_emails.sort(key=safe_parse_date)
+
         # تحديث التوكن في حالة تجديده
         return parsed_emails, {
             "access_token": creds.token,

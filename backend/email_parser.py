@@ -188,12 +188,13 @@ Each object in the array must represent an item in the order with these keys:
 - tracking_number: string (or null)
 - carrier: string (Amazon, SMSA, Aramex, DHL, FedEx, UPS, SaudiPost or null)
 - estimated_delivery: string (or null)
+- notes: string (short Arabic observation or status reason, e.g. "تم الإلغاء لعدم التوفر" or "توصيل متوقع الخميس")
 
 If there are multiple products in the email, return an array of multiple objects.
 If there is one product, return an array of one object.
 
 Email Text:
-{email_text[:3000]}
+{email_text[:3500]}
 
 Return a raw JSON array only, no markdown:"""
 
@@ -237,7 +238,7 @@ Return a raw JSON array only, no markdown:"""
 
 
 
-def parse_order_email(email_data: Dict) -> List[Dict]:
+def parse_order_email(email_data: Dict, use_ai_forced: bool = False) -> List[Dict]:
     """
     تحليل شامل لرسالة أمازون — هجين بين الـ Regex السريع والـ AI الفائق
     """
@@ -257,7 +258,7 @@ def parse_order_email(email_data: Dict) -> List[Dict]:
         logger.debug(f"No order ID: {subject[:80]}")
         return []
 
-    # 1. محاولة الاستخراج عبر Regex الأساسي
+    # 1. محاولة الاستخراج عبر Regex الأساسي (كخط أساس للمقارنة)
     status = detect_status(subject, body_text, snippet)
     price    = extract_price(full_text)
     currency = detect_currency(full_text)
@@ -287,11 +288,12 @@ def parse_order_email(email_data: Dict) -> List[Dict]:
         "tracking_url":       tracking_url,
         "estimated_delivery": estimated_delivery,
         "raw_subject":        subject,
+        "notes":              None,
     }
 
-    # 2. إذا نقص اسم المنتج أو السعر، أو إذا أردنا جلب عدة منتجات في طلب واحد
-    if GEMINI_API_KEY and (not product_name or price is None or "item" in full_text.lower() or "cancel" in status):
-        logger.info("🤖 Invoking AI Layer for multi-item / complex parsing...")
+    # 2. إذا كان مفتاح AI متوفراً أو تم طلب المزامنة الذكية الشاملة، نعتمد على الذكاء الاصطناعي لضمان التقاط كافة المنتجات والملاحظات
+    if GEMINI_API_KEY:
+        logger.info("🤖 Invoking AI Layer for 100% complete multi-item extraction & notes...")
         ai_results = parse_with_ai(full_text)
         
         if ai_results and len(ai_results) > 0:
@@ -305,6 +307,7 @@ def parse_order_email(email_data: Dict) -> List[Dict]:
                 item["tracking_number"] = ai_item.get("tracking_number") or tracking_number
                 item["carrier"] = ai_item.get("carrier") or carrier
                 item["estimated_delivery"] = ai_item.get("estimated_delivery") or estimated_delivery
+                item["notes"] = ai_item.get("notes")
                 
                 if item["carrier"] and item["tracking_number"] and not item["tracking_url"]:
                     item["tracking_url"] = build_tracking_url(item["carrier"], item["tracking_number"], order_id)

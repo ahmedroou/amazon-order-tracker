@@ -168,6 +168,7 @@ function renderOrderCard(o) {
     : "";
 
   const date = o.order_date ? formatDate(o.order_date) : "";
+  const notesHtml = o.notes ? `<div style="font-size:0.7rem;color:var(--accent-light);margin-top:3px;font-style:italic">🤖 ${o.notes}</div>` : "";
 
   return `
     <button class="order-card order-card--${o.status}" onclick="openDetail(${o.id})">
@@ -178,6 +179,7 @@ function renderOrderCard(o) {
           <span class="badge badge--${o.status}">${o.status_ar || o.status}</span>
           <span class="order-card__email">${o.to_email || ''}</span>
         </div>
+        ${notesHtml}
         ${date ? `<div style="font-size:0.68rem;color:var(--text-muted);margin-top:3px">${date}</div>` : ""}
       </div>
       <div class="order-card__right">
@@ -517,8 +519,8 @@ function saveTelegramSettings() {
 // ─── Sync ─────────────────────────────────────
 
 async function triggerSync() {
-  const icon = document.getElementById("sync-icon").closest(".icon-btn");
-  icon.classList.add("spinning");
+  const icon = document.getElementById("sync-icon")?.closest(".icon-btn");
+  if (icon) icon.classList.add("spinning");
   try {
     const res = await fetch(`${API}/api/sync`, { method: "POST" }).then(r => r.json());
     showToast(`✅ تمت المزامنة — ${res.new_orders_found || 0} طلب جديد`);
@@ -526,7 +528,18 @@ async function triggerSync() {
   } catch(e) {
     showToast("❌ خطأ في المزامنة");
   } finally {
-    icon.classList.remove("spinning");
+    if (icon) icon.classList.remove("spinning");
+  }
+}
+
+async function triggerAISync() {
+  showToast("🤖 جاري تشغيل المزامنة الذكية الشاملة لكافة الرسائل والمعاملات...");
+  try {
+    const res = await fetch(`${API}/api/sync/ai`, { method: "POST" }).then(r => r.json());
+    showToast(`✨ اكتملت مزامنة AI الشاملة — تم تحديث الطلبات والتفاصيل`);
+    loadDashboard();
+  } catch(e) {
+    showToast("❌ خطأ في المزامنة الذكية");
   }
 }
 

@@ -330,15 +330,23 @@ async def get_stats():
 @app.post("/api/sync")
 async def sync_now():
     """مزامنة فورية لكل الحسابات"""
-    total = await sync_all_accounts()
+    total = await sync_all_accounts(use_ai_forced=False)
     return {"success": True, "new_orders_found": total}
+
+
+@app.post("/api/sync/ai")
+async def sync_now_ai():
+    """مزامنة الذكاء الاصطناعي الشاملة (AI Deep Sync) لكافة الرسائل والمعاملات"""
+    total = await sync_all_accounts(use_ai_forced=True)
+    return {"success": True, "new_orders_found": total, "mode": "ai_deep_sync"}
 
 
 # ─── Core Sync Logic ──────────────────────────────────────
 
-async def sync_all_accounts() -> int:
+async def sync_all_accounts(use_ai_forced: bool = False) -> int:
     """الدالة الرئيسية لفحص كل الحسابات المربوطة"""
-    logger.info("🔄 Starting email sync for all accounts...")
+    mode_str = "AI Deep Sync 🤖" if use_ai_forced else "Standard Sync 🔄"
+    logger.info(f"🔄 Starting email sync ({mode_str}) for all accounts...")
     total_new = 0
 
     with SessionLocal() as db:
@@ -359,7 +367,7 @@ async def sync_all_accounts() -> int:
         if not acc["access_token"]:
             continue
         try:
-            new_count = await sync_account(acc)
+            new_count = await sync_account(acc, use_ai_forced=use_ai_forced)
             total_new += new_count
             with SessionLocal() as db:
                 a = db.query(EmailAccount).filter_by(id=acc["id"]).first()
@@ -376,15 +384,15 @@ async def sync_all_accounts() -> int:
                     a.last_error = str(e)
                     db.commit()
 
-    logger.info(f"✅ Sync complete. New orders: {total_new}")
+    logger.info(f"✅ Sync complete ({mode_str}). New orders: {total_new}")
     return total_new
 
 
 
-async def sync_account(acc: dict) -> int:
+async def sync_account(acc: dict, use_ai_forced: bool = False) -> int:
     """فحص حساب إيميل واحد"""
     after_ts = None
-    if acc["last_synced"]:
+    if acc["last_synced"] and not use_ai_forced:
         after_ts = int(acc["last_synced"].timestamp())
 
     emails, updated_tokens = fetch_amazon_emails(
@@ -398,7 +406,7 @@ async def sync_account(acc: dict) -> int:
 
     with SessionLocal() as db:
         for email_data in emails:
-            parsed_list = parse_order_email(email_data)
+            parsed_list = parse_order_email(email_data, use_ai_forced=use_ai_forced)
             if not parsed_list:
                 continue
 
@@ -409,6 +417,7 @@ async def sync_account(acc: dict) -> int:
                 
                 parsed_status = parsed.get("status", "pending")
                 parsed_product_name = parsed.get("product_name")
+                parsed_notes = parsed.get("notes")
 
                 # جلب جميع القطع المرتبطة برقم الطلب
                 existing_items = db.query(Order).filter_by(amazon_order_id=order_id).all()
@@ -429,16 +438,25 @@ async def sync_account(acc: dict) -> int:
                         items_to_update = existing_items
 
                     for existing in items_to_update:
+                        status_changed = False
                         if parsed_status != existing.status and parsed_status != "pending":
                             old_status = existing.status
                             existing.status = parsed_status
-                            existing.updated_at = datetime.utcnow()
+                            status_changed = True
                             db.add(OrderStatusHistory(
                                 order_id=existing.id,
                                 status=parsed_status,
                                 source="email"
                             ))
+                        
+                        if parsed_notes:
+                            existing.notes = parsed_notes
+
+                        if status_changed or parsed_notes:
+                            existing.updated_at = datetime.utcnow()
                             db.commit()
+
+                        if status_changed:
                             await notify_status_change(
                                 {"product_name": existing.product_name, "amazon_order_id": order_id},
                                 old_status, parsed_status
@@ -461,6 +479,7 @@ async def sync_account(acc: dict) -> int:
                         carrier=parsed.get("carrier"),
                         tracking_url=parsed.get("tracking_url"),
                         estimated_delivery=parsed.get("estimated_delivery"),
+                        notes=parsed_notes,
                         email_message_id=email_data.get("gmail_message_id"),
                     )
                     db.add(order)
