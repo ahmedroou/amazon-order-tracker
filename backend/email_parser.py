@@ -193,27 +193,32 @@ Email Text:
 
 Return raw JSON only, no markdown:"""
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
-    }
+    models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
 
-    try:
-        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            text_response = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-            # Clean markdown codeblocks if present
-            if text_response.startswith("```"):
-                text_response = re.sub(r"^```(?:json)?\n|\n```$", "", text_response, flags=re.MULTILINE).strip()
-            parsed_json = json.loads(text_response)
-            logger.info(f"✨ AI Parser successfully processed email: {parsed_json.get('amazon_order_id')}")
-            return parsed_json
-    except Exception as e:
-        logger.warning(f"AI Parser error: {e}")
-        return None
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={GEMINI_API_KEY}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
+        }
+
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                text_response = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                if text_response.startswith("```"):
+                    text_response = re.sub(r"^```(?:json)?\n|\n```$", "", text_response, flags=re.MULTILINE).strip()
+                parsed_json = json.loads(text_response)
+                logger.info(f"✨ AI Parser ({model_name}) successfully processed email: {parsed_json.get('amazon_order_id')}")
+                return parsed_json
+        except Exception as e:
+            logger.debug(f"AI Parser ({model_name}) attempt error: {e}")
+            continue
+
+    return None
+
 
 
 def parse_order_email(email_data: Dict) -> Optional[Dict]:
