@@ -524,9 +524,10 @@ async function triggerSync() {
   const icon = document.getElementById("sync-icon")?.closest(".icon-btn");
   if (icon) icon.classList.add("spinning");
   try {
-    const res = await fetch(`${API}/api/sync`, { method: "POST" }).then(r => r.json());
-    showToast(`✅ تمت المزامنة — ${res.new_orders_found || 0} طلب جديد`);
-    loadDashboard();
+    await fetch(`${API}/api/sync`, { method: "POST" });
+    showToast("🔄 بدأت المزامنة الفورية في الخلفية..");
+    setTimeout(loadDashboard, 3000);
+    setTimeout(loadDashboard, 8000);
   } catch(e) {
     showToast("❌ خطأ في المزامنة");
   } finally {
@@ -535,11 +536,13 @@ async function triggerSync() {
 }
 
 async function triggerAISync() {
-  showToast("🤖 جاري تشغيل المزامنة الذكية الشاملة لكافة الرسائل والمعاملات...");
+  showToast("🤖 بدأت المزامنة الذكية الشاملة في الخلفية...");
   try {
-    const res = await fetch(`${API}/api/sync/ai`, { method: "POST" }).then(r => r.json());
-    showToast(`✨ اكتملت مزامنة AI الشاملة — تم تحديث الطلبات والتفاصيل`);
-    loadDashboard();
+    await fetch(`${API}/api/sync/ai`, { method: "POST" });
+    showToast("✨ جاري معالجة كافة الرسائل بواسطة Gemini AI.. ستتحدث الشاشة تلقائياً");
+    setTimeout(loadDashboard, 4000);
+    setTimeout(loadDashboard, 10000);
+    setTimeout(loadDashboard, 18000);
   } catch(e) {
     showToast("❌ خطأ في المزامنة الذكية");
   }

@@ -400,18 +400,20 @@ async def get_stats():
         }
 
 
+from fastapi import BackgroundTasks
+
 @app.post("/api/sync")
-async def sync_now():
-    """مزامنة فورية لكل الحسابات"""
-    total = await sync_all_accounts(use_ai_forced=False)
-    return {"success": True, "new_orders_found": total}
+async def sync_now(background_tasks: BackgroundTasks):
+    """مزامنة فورية لكل الحسابات في الخلفية"""
+    background_tasks.add_task(sync_all_accounts, use_ai_forced=False)
+    return {"success": True, "message": "بدأت المزامنة الفورية في الخلفية"}
 
 
 @app.post("/api/sync/ai")
-async def sync_now_ai():
-    """مزامنة الذكاء الاصطناعي الشاملة (AI Deep Sync) لكافة الرسائل والمعاملات"""
-    total = await sync_all_accounts(use_ai_forced=True)
-    return {"success": True, "new_orders_found": total, "mode": "ai_deep_sync"}
+async def sync_now_ai(background_tasks: BackgroundTasks):
+    """مزامنة الذكاء الاصطناعي الشاملة (AI Deep Sync) لكافة الرسائل والمعاملات في الخلفية"""
+    background_tasks.add_task(sync_all_accounts, use_ai_forced=True)
+    return {"success": True, "message": "بدأت المزامنة الذكية الشاملة في الخلفية", "mode": "ai_deep_sync"}
 
 
 # ─── Core Sync Logic ──────────────────────────────────────
