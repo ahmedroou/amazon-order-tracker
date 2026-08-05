@@ -119,6 +119,28 @@ export async function addAccount(email, displayName = '') {
   }
 }
 
+export async function fetchAccountsHealth() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/accounts/health`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('fetchAccountsHealth error:', err);
+    throw err;
+  }
+}
+
+export async function healthCheckAccount(accountId) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/accounts/${accountId}/health-check`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('healthCheckAccount error:', err);
+    throw err;
+  }
+}
+
 export function getAddAccountUrl() {
   return `${BASE_URL}/auth/gmail`;
 }
@@ -131,8 +153,11 @@ export default {
   getExportUrl,
   sendChatMessage,
   fetchAccounts,
+  fetchAccountsHealth,
+  healthCheckAccount,
   deleteAccount,
   syncAccountManual,
+  addAccount,
   getAddAccountUrl,
 };
 
