@@ -9,6 +9,8 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
@@ -20,6 +22,7 @@ import {
   deleteAccount,
   syncAccountManual,
   getAddAccountUrl,
+  addAccount,
 } from '../services/api';
 
 export default function SettingsScreen() {
@@ -60,7 +63,35 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleAddAccount = async () => {
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [newEmailInput, setNewEmailInput] = useState('ahmeds25roou@gmail.com');
+  const [submittingEmail, setSubmittingEmail] = useState(false);
+
+  const handleAddAccount = () => {
+    setAddModalVisible(true);
+  };
+
+  const handleConfirmAddEmail = async () => {
+    const emailClean = newEmailInput.trim().toLowerCase();
+    if (!emailClean || !emailClean.includes('@')) {
+      Alert.alert('بريد غير صحيح', 'يرجى كتابة بريد إلكتروني صحيح مثل name@gmail.com');
+      return;
+    }
+    setSubmittingEmail(true);
+    try {
+      const res = await addAccount(emailClean);
+      setAddModalVisible(false);
+      Alert.alert('تمت الإضافة بنجاح 🟢', `تم ربط حساب ${emailClean} بنجاح وحالة الحساب نشطة الآن!`);
+      loadAccountsList();
+    } catch (err) {
+      Alert.alert('خطأ في الإضافة', err.message || 'فشلت إضافة البريد الإلكتروني');
+    } finally {
+      setSubmittingEmail(false);
+    }
+  };
+
+  const handleOpenGoogleOAuth = async () => {
+    setAddModalVisible(false);
     const url = getAddAccountUrl();
     try {
       const supported = await Linking.canOpenURL(url);
@@ -341,6 +372,67 @@ export default function SettingsScreen() {
       </View>
 
       <View style={{ height: 20 }} />
+
+      {/* Add Email Account Modal */}
+      <Modal
+        visible={addModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setAddModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeaderRow}>
+              <Ionicons name="mail" size={24} color="#EA4335" style={{ marginLeft: 8 }} />
+              <Text style={styles.modalTitle}>إضافة حساب Gmail جديد</Text>
+            </View>
+            <Text style={styles.modalDesc}>
+              اختر أو اكتب البريد الإلكتروني المسجل على جهازك لربطه وتتبع طلبات أمازون فوراً:
+            </Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="مثال: ahmeds25roou@gmail.com"
+              placeholderTextColor="#9CA3AF"
+              value={newEmailInput}
+              onChangeText={setNewEmailInput}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <TouchableOpacity
+              style={styles.modalConfirmBtn}
+              onPress={handleConfirmAddEmail}
+              disabled={submittingEmail}
+            >
+              {submittingEmail ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'center' }}>
+                  <Ionicons name="checkmark-circle" size={20} color="#FFF" style={{ marginLeft: 6 }} />
+                  <Text style={styles.modalConfirmBtnText}>إضافة البريد الإلكتروني</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalSecondaryBtn}
+              onPress={handleOpenGoogleOAuth}
+            >
+              <Ionicons name="logo-google" size={16} color="#4B5563" style={{ marginLeft: 6 }} />
+              <Text style={styles.modalSecondaryBtnText}>أو الربط المتقدم عبر متصفح Google</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={() => setAddModalVisible(false)}
+            >
+              <Text style={styles.modalCancelBtnText}>إلغاء</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -617,6 +709,88 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  modalDesc: {
+    fontSize: 13,
+    color: '#4B5563',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  modalInput: {
+    width: '100%',
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalConfirmBtn: {
+    width: '100%',
+    backgroundColor: '#EA4335',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  modalConfirmBtnText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  modalSecondaryBtn: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    marginBottom: 6,
+  },
+  modalSecondaryBtnText: {
+    color: '#4B5563',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  modalCancelBtn: {
+    paddingVertical: 8,
+  },
+  modalCancelBtnText: {
+    color: '#9CA3AF',
+    fontSize: 13,
   },
 });
 

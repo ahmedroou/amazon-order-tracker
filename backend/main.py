@@ -165,6 +165,48 @@ async def gmail_callback(code: str, request: Request):
 
 # ─── Email Accounts API ───────────────────────────────────
 
+class AccountCreate(BaseModel):
+    email: str
+    display_name: Optional[str] = None
+
+
+@app.post("/api/accounts")
+async def create_account(data: AccountCreate):
+    """إضافة حساب إيميل جديد مباشرة بالبريد الإلكتروني"""
+    email_clean = data.email.lower().strip()
+    if not email_clean or "@" not in email_clean:
+        raise HTTPException(status_code=400, detail="يرجى إدخال بريد إلكتروني صحيح")
+
+    with SessionLocal() as db:
+        existing = db.query(EmailAccount).filter_by(email=email_clean).first()
+        if existing:
+            existing.is_active = True
+            existing.status = "active"
+            existing.last_error = None
+            db.commit()
+            db.refresh(existing)
+            return {
+                "success": True,
+                "account": {"id": existing.id, "email": existing.email},
+                "message": "تم إعادة تفعيل الحساب بنجاح"
+            }
+
+        acc = EmailAccount(
+            email=email_clean,
+            display_name=data.display_name or email_clean,
+            is_active=True,
+            status="active"
+        )
+        db.add(acc)
+        db.commit()
+        db.refresh(acc)
+        return {
+            "success": True,
+            "account": {"id": acc.id, "email": acc.email},
+            "message": "تمت إضافة البريد الإلكتروني بنجاح"
+        }
+
+
 @app.get("/api/accounts")
 async def get_accounts():
     with SessionLocal() as db:

@@ -101,6 +101,24 @@ export async function syncAccountManual(accountId) {
   }
 }
 
+export async function addAccount(email, displayName = '') {
+  try {
+    const res = await fetch(`${BASE_URL}/api/accounts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, display_name: displayName })
+    });
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.detail || `HTTP ${res.status}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.error('addAccount error:', err);
+    throw err;
+  }
+}
+
 export function getAddAccountUrl() {
   return `${BASE_URL}/auth/gmail`;
 }
