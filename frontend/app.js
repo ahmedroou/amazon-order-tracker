@@ -722,6 +722,11 @@ async function loadAnalytics() {
       `;
     }).join("");
 
+  } catch(e) {
+    console.error("Analytics load error:", e);
+  }
+}
+
 function exportCSV() {
   showToast("📥 جاري تصدير الملف كـ Excel / CSV...");
   window.location.href = `${API}/api/orders/export`;
