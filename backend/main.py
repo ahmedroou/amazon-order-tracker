@@ -58,26 +58,16 @@ if os.path.exists(FRONTEND_DIR):
 
 # ─── Download APK Endpoint ───────────────────────────────
 
+@app.get("/app", response_class=HTMLResponse)
 @app.get("/download")
-@app.get("/AmazonTracker.apk")
-async def download_apk():
-    """تحميل تطبيق الموبايل للأندرويد APK مباشرة"""
-    apk_path = os.path.join(FRONTEND_DIR, "AmazonTracker.apk")
-    if os.path.exists(apk_path):
-        return FileResponse(
-            apk_path,
-            filename="AmazonTracker.apk",
-            media_type="application/vnd.android.package-archive"
-        )
-    # Check android_app build folder if frontend apk is not there
-    built_apk = os.path.join(os.path.dirname(__file__), "..", "android_app", "app", "build", "outputs", "apk", "debug", "app-debug.apk")
-    if os.path.exists(built_apk):
-        return FileResponse(
-            built_apk,
-            filename="AmazonTracker.apk",
-            media_type="application/vnd.android.package-archive"
-        )
-    raise HTTPException(status_code=404, detail="ملف التطبيق غير موجود حالياً")
+async def serve_download_page():
+    """صفحة تحميل التطبيق الجديدة"""
+    page_path = os.path.join(FRONTEND_DIR, "download.html")
+    if os.path.exists(page_path):
+        with open(page_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse("<h1>Download page not found</h1>", status_code=404)
+
 
 
 

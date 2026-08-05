@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تحميل تطبيق أمازون تراكر</title>
+  <style>
+    :root {
+      --bg: #0f111a;
+      --card: #1a1d29;
+      --primary: #8b5cf6;
+      --primary-hover: #7c3aed;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: var(--card);
+      padding: 40px 30px;
+      border-radius: 20px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.05);
+      max-width: 90%;
+      width: 400px;
+    }
+    .icon {
+      font-size: 4rem;
+      margin-bottom: 20px;
+    }
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 1.5rem;
+    }
+    p {
+      color: var(--text-muted);
+      margin-bottom: 30px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: var(--primary);
+      color: #fff;
+      text-decoration: none;
+      padding: 15px 30px;
+      border-radius: 30px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+    }
+    .download-btn:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
+    }
+    .download-btn:active {
+      transform: translateY(0);
+    }
+    .version {
+      margin-top: 20px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="icon">📦</div>
+    <h1>أمازون تراكر</h1>
+    <p>تطبيق الجوال لإدارة وتتبع طلباتك من أمازون بسهولة، مع واجهة بتصميم مصغر وحديث يدعم الوضع الليلي.</p>
+    
+    <a href="/static/AmazonTracker.apk" class="download-btn" download>
+      <span>تحميل التطبيق (APK)</span>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+    </a>
+
+    <div class="version">الإصدار 1.0.0 للأندرويد</div>
+  </div>
+
+</body>
+</html>
