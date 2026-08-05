@@ -165,6 +165,36 @@ async def gmail_callback(code: str, request: Request):
         return RedirectResponse("/?error=auth_failed")
 
 
+class NativeTokenRequest(BaseModel):
+    serverAuthCode: str
+
+@app.post("/api/auth/google/token")
+async def google_native_token(data: NativeTokenRequest):
+    """استقبال الكود من تطبيق الجوال وإتمام التفويض"""
+    try:
+        tokens = exchange_code_for_tokens(data.serverAuthCode)
+        email = tokens["email"]
+
+        with SessionLocal() as db:
+            account = db.query(EmailAccount).filter_by(email=email).first()
+            if not account:
+                account = EmailAccount(email=email, display_name=email)
+                db.add(account)
+
+            account.access_token = tokens["access_token"]
+            account.refresh_token = tokens["refresh_token"]
+            account.token_expiry = tokens["expiry"]
+            account.is_active = True
+            db.commit()
+
+        logger.info(f"✅ Native Gmail connected: {email}")
+        return {"success": True, "email": email}
+    except Exception as e:
+        logger.error(f"Native OAuth error: {e}")
+        raise HTTPException(status_code=400, detail=f"فشل التحقق: {str(e)}")
+
+
+
 # ─── Email Accounts API ───────────────────────────────────
 
 class AccountCreate(BaseModel):

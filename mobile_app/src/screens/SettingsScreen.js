@@ -13,6 +13,15 @@ import {
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+
+GoogleSignin.configure({
+  webClientId: '611957260551-vk7f1gp4tuaooqvu9l7aetqiefqescm9.apps.googleusercontent.com',
+  offlineAccess: true, // Needed to get the serverAuthCode for the backend
+  forceCodeForRefreshToken: true,
+  scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+});
+
 import { colors } from '../theme/colors';
 import {
   fetchSyncStatus,
@@ -64,16 +73,43 @@ export default function SettingsScreen() {
   };
 
   const handleAddAccount = async () => {
-    const url = getAddAccountUrl();
+    setIsSignaling(true);
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert('رابط الإضافة', url);
+      // Check if Play Services is available
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      
+      // Perform Sign-In
+      const userInfo = await GoogleSignin.signIn();
+      const serverAuthCode = userInfo.serverAuthCode; // V2 API uses serverAuthCode directly
+      
+      if (serverAuthCode) {
+        // Send serverAuthCode to our backend
+        const res = await fetch(`${API}/api/auth/google/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serverAuthCode }),
+        });
+        
+        const result = await res.json();
+        if (res.ok) {
+          Alert.alert('تم الربط بنجاح ✅', 'تم ربط الحساب وتفعيله بنجاح للمزامنة التلقائية.');
+          loadAccountsList();
+        } else {
+          Alert.alert('فشل الربط', result.detail || 'حدث خطأ أثناء تفعيل الحساب.');
+        }
       }
-    } catch (err) {
-      Alert.alert('خطأ', 'تعذر فتح صفحة التفويض: ' + err.message);
+    } catch (error) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // user cancelled the login flow
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        Alert.alert('جاري تسجيل الدخول', 'يرجى الانتظار');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('خدمات جوجل غير متاحة', 'هذا الجهاز لا يدعم خدمات جوجل بلاي.');
+      } else {
+        Alert.alert('خطأ', 'فشل تسجيل الدخول: ' + error.message);
+      }
+    } finally {
+      setIsSignaling(false);
     }
   };
 

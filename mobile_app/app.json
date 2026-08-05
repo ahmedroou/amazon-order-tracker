@@ -10,7 +10,10 @@
       "bundleIdentifier": "com.amazon.ordertracker"
     },
     "android": {
-      "package": "com.amazon.ordertracker"
-    }
+      "package": "com.ahmedroou.amazonordertracker"
+    },
+    "plugins": [
+      "@react-native-google-signin/google-signin"
+    ]
   }
 }
