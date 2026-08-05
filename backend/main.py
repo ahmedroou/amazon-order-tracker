@@ -159,9 +159,27 @@ async def gmail_callback(code: str, request: Request):
             db.commit()
 
         logger.info(f"✅ Gmail connected: {email}")
+        # Check if request is likely from mobile
+        user_agent = request.headers.get("user-agent", "").lower()
+        is_mobile = any(x in user_agent for x in ["android", "iphone", "mobile"])
+        if is_mobile:
+            return HTMLResponse(f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>تم الربط</title><style>body{{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a1628;color:#fff}}
+            .card{{text-align:center;padding:2rem;border-radius:16px;background:rgba(255,255,255,.08);max-width:340px}}
+            .icon{{font-size:4rem;margin-bottom:1rem}}.email{{color:#4fc3f7;font-weight:bold;margin:.5rem 0}}.hint{{color:#aaa;font-size:.85rem;margin-top:1rem}}</style></head>
+            <body><div class="card"><div class="icon">✅</div><h2>تم ربط الحساب بنجاح!</h2><p class="email">{email}</p>
+            <p>يمكنك الآن إغلاق هذه الصفحة والعودة للتطبيق.</p><p class="hint">اسحب للأسفل في التطبيق لتحديث القائمة.</p></div></body></html>""")
         return RedirectResponse("/?connected=true")
     except Exception as e:
         logger.error(f"OAuth error: {e}")
+        user_agent = request.headers.get("user-agent", "").lower()
+        is_mobile = any(x in user_agent for x in ["android", "iphone", "mobile"])
+        if is_mobile:
+            return HTMLResponse(f"""<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>فشل الربط</title><style>body{{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a1628;color:#fff}}
+            .card{{text-align:center;padding:2rem;border-radius:16px;background:rgba(255,255,255,.08);max-width:340px}}
+            .icon{{font-size:4rem;margin-bottom:1rem}}</style></head>
+            <body><div class="card"><div class="icon">❌</div><h2>فشل ربط الحساب</h2><p>حدث خطأ أثناء تسجيل الدخول. يرجى المحاولة مرة أخرى.</p></div></body></html>""")
         return RedirectResponse("/?error=auth_failed")
 
 

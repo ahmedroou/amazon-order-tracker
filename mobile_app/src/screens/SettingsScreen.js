@@ -13,14 +13,7 @@ import {
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 
-GoogleSignin.configure({
-  webClientId: '611957260551-vk7f1gp4tuaooqvu9l7aetqiefqescm9.apps.googleusercontent.com',
-  offlineAccess: true, // Needed to get the serverAuthCode for the backend
-  forceCodeForRefreshToken: true,
-  scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
-});
 
 import { colors } from '../theme/colors';
 import {
@@ -42,6 +35,7 @@ export default function SettingsScreen() {
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionAccId, setActionAccId] = useState(null);
+  const [isSignaling, setIsSignaling] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -75,39 +69,22 @@ export default function SettingsScreen() {
   const handleAddAccount = async () => {
     setIsSignaling(true);
     try {
-      // Check if Play Services is available
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      
-      // Perform Sign-In
-      const userInfo = await GoogleSignin.signIn();
-      const serverAuthCode = userInfo.serverAuthCode; // V2 API uses serverAuthCode directly
-      
-      if (serverAuthCode) {
-        // Send serverAuthCode to our backend
-        const res = await fetch(`${API}/api/auth/google/token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ serverAuthCode }),
-        });
-        
-        const result = await res.json();
-        if (res.ok) {
-          Alert.alert('تم الربط بنجاح ✅', 'تم ربط الحساب وتفعيله بنجاح للمزامنة التلقائية.');
+      // Open the server's OAuth page in the device browser
+      const authUrl = 'https://84.8.102.52.sslip.io/auth/gmail';
+      const supported = await Linking.canOpenURL(authUrl);
+      if (supported) {
+        await Linking.openURL(authUrl);
+        // After user completes OAuth in browser, they come back to the app
+        // We'll refresh the accounts list after a short delay
+        setTimeout(() => {
           loadAccountsList();
-        } else {
-          Alert.alert('فشل الربط', result.detail || 'حدث خطأ أثناء تفعيل الحساب.');
-        }
+          Alert.alert('ربط الحساب', 'بعد إتمام تسجيل الدخول في المتصفح، اسحب للأسفل لتحديث قائمة الحسابات.');
+        }, 2000);
+      } else {
+        Alert.alert('خطأ', 'تعذر فتح المتصفح.');
       }
     } catch (error) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        // user cancelled the login flow
-      } else if (error.code === statusCodes.IN_PROGRESS) {
-        Alert.alert('جاري تسجيل الدخول', 'يرجى الانتظار');
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        Alert.alert('خدمات جوجل غير متاحة', 'هذا الجهاز لا يدعم خدمات جوجل بلاي.');
-      } else {
-        Alert.alert('خطأ', 'فشل تسجيل الدخول: ' + error.message);
-      }
+      Alert.alert('خطأ', 'فشل فتح صفحة تسجيل الدخول: ' + error.message);
     } finally {
       setIsSignaling(false);
     }
