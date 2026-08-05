@@ -1300,3 +1300,143 @@ body {
   z-index: 10;
 }
 .nav-badge.hidden { display: none; }
+
+/* ─── Compact Order Card (ocard) ─────────────────────── */
+.ocard {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px 8px 8px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  transition: var(--transition);
+  width: 100%;
+  min-height: 60px;
+  overflow: hidden;
+}
+.ocard:hover, .ocard:active {
+  background: var(--bg-card-hover);
+  transform: translateY(-1px);
+}
+
+/* حدود ملونة حسب الحالة */
+.ocard--pending       { border-right: 3px solid var(--orange); }
+.ocard--shipped       { border-right: 3px solid var(--blue); }
+.ocard--out_for_delivery { border-right: 3px solid #8b5cf6; }
+.ocard--delivered     { border-right: 3px solid var(--green); }
+.ocard--cancelled     { border-right: 3px solid var(--red); opacity: 0.75; }
+.ocard--returned      { border-right: 3px solid var(--text-muted); opacity: 0.7; }
+
+/* زر الحذف */
+.ocard__del {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(239,68,68,0.12);
+  color: var(--red);
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 0.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: var(--transition);
+  z-index: 3;
+}
+.ocard:hover .ocard__del { opacity: 0.8; }
+.ocard__del:hover { opacity: 1 !important; background: rgba(239,68,68,0.3) !important; }
+
+/* صورة المنتج */
+.ocard__img {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.ocard__img--ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+}
+
+/* جسم البطاقة */
+.ocard__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* اسم المنتج */
+.ocard__name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+/* الصف الأول: badge + رقم الطلب + تاريخ */
+.ocard__row1 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.ocard__id {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  font-family: 'Courier New', monospace;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+.ocard__date {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-right: auto;
+}
+
+/* الصف الثاني: سعر + ربح + تتبع */
+.ocard__row2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.ocard__price {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.ocard__profit {
+  font-size: 0.65rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ocard__profit.pos { color: var(--green); }
+.ocard__profit.neg { color: var(--red); }
+.ocard__track {
+  font-size: 0.62rem;
+  color: var(--blue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: auto;
+}

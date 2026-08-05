@@ -173,34 +173,46 @@ function renderOrdersList() {
 
 function renderOrderCard(o) {
   const img = o.product_image
-    ? `<img src="${o.product_image}" class="order-card__img" alt="" loading="lazy" onerror="this.outerHTML='<div class=\\'order-card__img\\'>📦</div>'">`
-    : `<div class="order-card__img">📦</div>`;
+    ? `<img src="${o.product_image}" class="ocard__img" alt="" loading="lazy" onerror="this.outerHTML='<div class=\\'ocard__img ocard__img--ph\\'>📦</div>'">`
+    : `<div class="ocard__img ocard__img--ph">📦</div>`;
 
-  const profit = o.profit !== null && o.profit !== undefined
-    ? `<span class="order-card__profit ${o.profit >= 0 ? 'positive' : 'negative'}">
-        ${o.profit >= 0 ? '+' : ''}${formatPrice(o.profit)}
-       </span>`
+  const name = o.product_name
+    ? (o.product_name.length > 55 ? o.product_name.slice(0, 55) + "…" : o.product_name)
+    : "منتج بدون اسم";
+
+  const orderId = o.amazon_order_id
+    ? `<span class="ocard__id">#${o.amazon_order_id.slice(-9)}</span>`
     : "";
 
   const date = o.order_date ? formatDate(o.order_date) : "";
-  const notesTag = o.notes ? `<span class="card-notes-inline" title="${o.notes}">📝 ${o.notes}</span>` : "";
+
+  const price = o.purchase_price != null
+    ? `<span class="ocard__price">${formatPrice(o.purchase_price)}</span>`
+    : "";
+
+  const profit = (o.profit !== null && o.profit !== undefined && o.sale_price)
+    ? `<span class="ocard__profit ${o.profit >= 0 ? 'pos' : 'neg'}">${o.profit >= 0 ? '+' : ''}${formatPrice(o.profit)}</span>`
+    : "";
+
+  const tracking = o.tracking_number
+    ? `<span class="ocard__track">🚚 ${o.tracking_number.slice(0,14)}</span>`
+    : "";
 
   return `
-    <div class="order-card order-card--${o.status}" onclick="openDetail(${o.id})">
-      <span class="card-quick-delete" onclick="quickDeleteOrder(event, ${o.id})" title="حذف الطلب">🗑️</span>
+    <div class="ocard ocard--${o.status}" onclick="openDetail(${o.id})">
+      <span class="ocard__del" onclick="quickDeleteOrder(event,${o.id})" title="حذف">✕</span>
       ${img}
-      <div class="order-card__info">
-        <div class="order-card__name">${o.product_name || 'منتج بدون اسم'}</div>
-        <div class="order-card__meta">
+      <div class="ocard__body">
+        <div class="ocard__name">${name}</div>
+        <div class="ocard__row1">
           <span class="badge badge--${o.status}">${o.status_ar || o.status}</span>
-          ${o.to_email ? `<span class="order-card__email">${o.to_email}</span>` : ""}
-          ${date ? `<span class="order-card__date">${date}</span>` : ""}
-          ${notesTag}
+          ${orderId}
+          ${date ? `<span class="ocard__date">${date}</span>` : ""}
         </div>
-      </div>
-      <div class="order-card__right">
-        <span class="order-card__price">${formatPrice(o.purchase_price)}</span>
-        ${profit}
+        <div class="ocard__row2">
+          ${price}${profit}
+          ${tracking}
+        </div>
       </div>
     </div>
   `;

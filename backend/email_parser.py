@@ -107,40 +107,46 @@ IMAGE_PATTERNS = [
     r"src=[\"'](https://[^\"']*amazon[^\"']*\.(jpg|png|jpeg))[\"']",
 ]
 
-STATUS_PRIORITY = ["cancelled", "returned", "delivered", "shipped", "out_for_delivery", "pending"]
+STATUS_PRIORITY = ["cancelled", "returned", "out_for_delivery", "delivered", "shipped", "pending"]
 
 STATUS_KEYWORDS = {
     "cancelled": [
         "cancelled", "canceled", "your order has been cancelled",
-        "تم إلغاء", "تم الإلغاء", "أُلغي طلبك", "order cancellation",
-        "we've cancelled", "has been cancelled",
+        "order cancellation", "we've cancelled", "has been cancelled",
+        "تم إلغاء", "تم الإلغاء", "أُلغي طلبك",
     ],
     "returned": [
         "return confirmed", "refund", "return approved",
-        "تم الإرجاع", "تم الاسترداد", "تم الاسترجاع",
         "your return", "return request",
-    ],
-    "delivered": [
-        "delivered", "package delivered", "your order has been delivered",
-        "تم التوصيل", "تم التسليم", "استلمت طلبك",
-        "has been delivered", "was delivered",
+        "تم الإرجاع", "تم الاسترداد", "تم الاسترجاع",
     ],
     "out_for_delivery": [
         "out for delivery", "will be delivered today",
-        "في طريقه إليك", "سيتم التوصيل اليوم",
         "arriving today", "delivery today",
+        "في طريقه إليك", "سيتم التوصيل اليوم",
+    ],
+    "delivered": [
+        "your package has been delivered",
+        "your order has been delivered",
+        "package was delivered",
+        "has been delivered",
+        "was delivered",
+        "تم التسليم", "تم التوصيل", "استلمت طلبك",
     ],
     "shipped": [
-        "shipped", "dispatched", "on its way", "has shipped",
+        "has shipped", "your order has shipped",
+        "your package has shipped",
+        "is on the way", "on its way",
+        "your order is on the way",
+        "your package is on the way",
+        "dispatched", "your shipment",
         "تم الشحن", "في الطريق", "جاري الشحن",
-        "your order is on the way", "your package is on the way",
-        "your shipment",
     ],
     "pending": [
         "order placed", "order confirmed", "thank you for your order",
         "order confirmation", "order received",
-        "تم تقديم الطلب", "تأكيد الطلب", "شكراً لطلبك",
         "we received your order",
+        "تم تقديم الطلب", "تأكيد الطلب", "شكراً لطلبك",
     ],
 }
 
@@ -499,12 +505,67 @@ def extract_delivery_date(text: str) -> Optional[str]:
 
 
 def detect_status(subject: str, body: str, snippet: str = "") -> str:
-    """كشف حالة الطلب بالأولوية الصحيحة"""
-    combined = f"{subject} {snippet} {body[:2000]}".lower()
+    """كشف حالة الطلب — يبدأ بالعنوان ثم النص بحذر"""
 
-    for status in STATUS_PRIORITY:
-        keywords = STATUS_KEYWORDS.get(status, [])
+    subject_lower = subject.lower().strip()
+
+    # 1. فحص العنوان أولاً (أكثر موثوقية)
+    SUBJECT_MAP = [
+        ("shipped",          ["has shipped", "your order has shipped", "your package is on the way",
+                              "on the way", "تم الشحن", "dispatched"]),
+        ("delivered",        ["delivered", "تم التسليم", "تم التوصيل", "استلمت طلبك"]),
+        ("cancelled",        ["cancelled", "canceled", "cancellation", "إلغاء"]),
+        ("returned",         ["return confirmed", "refund", "return approved", "إرجاع"]),
+        ("out_for_delivery", ["out for delivery", "arriving today", "delivery today"]),
+        ("pending",          ["order placed", "order confirmed", "order confirmation",
+                              "thank you for your order", "تأكيد الطلب"]),
+    ]
+    for status, keywords in SUBJECT_MAP:
         for kw in keywords:
+            if kw in subject_lower:
+                return status
+
+    # 2. فحص النص — لكن بعبارات محددة وقاطعة (past tense = تم فعلاً)
+    combined = f"{snippet} {body[:3000]}".lower()
+
+    DELIVERED_DEFINITE = [
+        "your package has been delivered",
+        "your order has been delivered",
+        "package was delivered",
+        "has been delivered",
+        "was delivered",
+        "تم التسليم",
+        "تم التوصيل",
+        "استلمت طلبك",
+    ]
+    SHIPPED_DEFINITE = [
+        "has shipped", "your order has shipped",
+        "your package has shipped",
+        "is on the way", "on its way",
+        "your order is on the way",
+        "your package is on the way",
+        "dispatched",
+        "تم الشحن",
+    ]
+
+    # تحقق من out_for_delivery أولاً
+    for kw in STATUS_KEYWORDS["out_for_delivery"]:
+        if kw in combined:
+            return "out_for_delivery"
+
+    # تحقق من التوصيل الفعلي
+    for phrase in DELIVERED_DEFINITE:
+        if phrase in combined:
+            return "delivered"
+
+    # تحقق من الشحن
+    for phrase in SHIPPED_DEFINITE:
+        if phrase in combined:
+            return "shipped"
+
+    # باقي الحالات
+    for status in ["cancelled", "returned", "pending"]:
+        for kw in STATUS_KEYWORDS.get(status, []):
             if kw.lower() in combined:
                 return status
 
