@@ -63,35 +63,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const [addModalVisible, setAddModalVisible] = useState(false);
-  const [newEmailInput, setNewEmailInput] = useState('ahmeds25roou@gmail.com');
-  const [submittingEmail, setSubmittingEmail] = useState(false);
-
-  const handleAddAccount = () => {
-    setAddModalVisible(true);
-  };
-
-  const handleConfirmAddEmail = async () => {
-    const emailClean = newEmailInput.trim().toLowerCase();
-    if (!emailClean || !emailClean.includes('@')) {
-      Alert.alert('بريد غير صحيح', 'يرجى كتابة بريد إلكتروني صحيح مثل name@gmail.com');
-      return;
-    }
-    setSubmittingEmail(true);
-    try {
-      const res = await addAccount(emailClean);
-      setAddModalVisible(false);
-      Alert.alert('تمت الإضافة بنجاح 🟢', `تم ربط حساب ${emailClean} بنجاح وحالة الحساب نشطة الآن!`);
-      loadAccountsList();
-    } catch (err) {
-      Alert.alert('خطأ في الإضافة', err.message || 'فشلت إضافة البريد الإلكتروني');
-    } finally {
-      setSubmittingEmail(false);
-    }
-  };
-
-  const handleOpenGoogleOAuth = async () => {
-    setAddModalVisible(false);
+  const handleAddAccount = async () => {
     const url = getAddAccountUrl();
     try {
       const supported = await Linking.canOpenURL(url);
@@ -372,67 +344,6 @@ export default function SettingsScreen() {
       </View>
 
       <View style={{ height: 20 }} />
-
-      {/* Add Email Account Modal */}
-      <Modal
-        visible={addModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setAddModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeaderRow}>
-              <Ionicons name="mail" size={24} color="#EA4335" style={{ marginLeft: 8 }} />
-              <Text style={styles.modalTitle}>إضافة حساب Gmail جديد</Text>
-            </View>
-            <Text style={styles.modalDesc}>
-              اختر أو اكتب البريد الإلكتروني المسجل على جهازك لربطه وتتبع طلبات أمازون فوراً:
-            </Text>
-
-            <TextInput
-              style={styles.modalInput}
-              placeholder="مثال: ahmeds25roou@gmail.com"
-              placeholderTextColor="#9CA3AF"
-              value={newEmailInput}
-              onChangeText={setNewEmailInput}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <TouchableOpacity
-              style={styles.modalConfirmBtn}
-              onPress={handleConfirmAddEmail}
-              disabled={submittingEmail}
-            >
-              {submittingEmail ? (
-                <ActivityIndicator color="#FFF" size="small" />
-              ) : (
-                <View style={{ flexDirection: 'row-reverse', alignItems: 'center' }}>
-                  <Ionicons name="checkmark-circle" size={20} color="#FFF" style={{ marginLeft: 6 }} />
-                  <Text style={styles.modalConfirmBtnText}>إضافة البريد الإلكتروني</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalSecondaryBtn}
-              onPress={handleOpenGoogleOAuth}
-            >
-              <Ionicons name="logo-google" size={16} color="#4B5563" style={{ marginLeft: 6 }} />
-              <Text style={styles.modalSecondaryBtnText}>أو الربط المتقدم عبر متصفح Google</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalCancelBtn}
-              onPress={() => setAddModalVisible(false)}
-            >
-              <Text style={styles.modalCancelBtnText}>إلغاء</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 }
