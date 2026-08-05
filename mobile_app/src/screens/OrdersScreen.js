@@ -78,66 +78,66 @@ export default function OrdersScreen() {
   const renderOrderItem = ({ item }) => {
     const isDelivered = item.status === 'delivered';
     const isShipped = item.status === 'shipped';
+    
+    const getStatusText = () => {
+      if (isDelivered) return '✅ موصّل';
+      if (isShipped) return '🚚 شحن';
+      if (item.status === 'pending') return '⏳ انتظار';
+      if (item.status === 'cancelled') return '❌ ملغي';
+      return item.status || 'معلق';
+    };
+
+    const getStatusBg = () => {
+      if (isDelivered) return colors.statusDeliveredBg;
+      if (isShipped) return colors.statusShippedBg;
+      if (item.status === 'cancelled') return colors.statusCancelledBg;
+      return colors.statusPendingBg;
+    };
+
+    const getStatusColor = () => {
+      if (isDelivered) return colors.statusDelivered;
+      if (isShipped) return colors.statusShipped;
+      if (item.status === 'cancelled') return colors.statusCancelled;
+      return colors.statusPending;
+    };
+
+    const orderIdShort = item.amazon_order_id ? `#${item.amazon_order_id.slice(-9)}` : '';
+    const dateStr = item.order_date ? item.order_date.substring(0, 10) : '';
 
     return (
-      <View style={styles.orderCard}>
-        <View style={styles.cardHeader}>
-          <View style={[styles.badge, {
-            backgroundColor: isDelivered ? colors.statusDeliveredBg : isShipped ? colors.statusShippedBg : colors.statusPendingBg
-          }]}>
-            <Text style={[styles.badgeText, {
-              color: isDelivered ? colors.statusDelivered : isShipped ? colors.statusShipped : colors.statusPending
-            }]}>
-              {isDelivered ? '✅ موصّل' : isShipped ? '🚚 جاري الشحن' : item.status || 'معلق'}
-            </Text>
-          </View>
-          <Text style={styles.orderDate}>{item.order_date ? item.order_date.substring(0, 10) : '—'}</Text>
+      <TouchableOpacity style={styles.ocard} activeOpacity={0.7} onPress={() => {}}>
+        <View style={styles.ocardImgPlace}>
+          <Text style={{fontSize:20}}>📦</Text>
         </View>
-
-        <Text style={styles.productTitle} numberOfLines={2}>{item.product_name || 'منتج بدون اسم'}</Text>
-
-        {/* Order ID Row */}
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>رقم الطلب: </Text>
-          <Text style={styles.infoValue}>{item.amazon_order_id || '—'}</Text>
-          {item.amazon_order_id && (
-            <TouchableOpacity style={styles.copyBtn} onPress={() => copyText(item.amazon_order_id, 'رقم الطلب')}>
-              <Ionicons name="copy-outline" size={15} color={colors.primary} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Tracking Row */}
-        {item.tracking_number ? (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>التتبع: </Text>
-            <Text style={[styles.infoValue, { color: colors.statusShipped }]}>{item.tracking_number}</Text>
-            <TouchableOpacity style={styles.copyBtn} onPress={() => copyText(item.tracking_number, 'رقم التتبع')}>
-              <Ionicons name="copy-outline" size={15} color={colors.statusShipped} />
-            </TouchableOpacity>
+        <View style={styles.ocardBody}>
+          <Text style={styles.ocardName} numberOfLines={1}>{item.product_name || 'منتج بدون اسم'}</Text>
+          
+          <View style={styles.ocardRow1}>
+            <View style={[styles.ocardBadge, { backgroundColor: getStatusBg() }]}>
+              <Text style={[styles.ocardBadgeText, { color: getStatusColor() }]}>{getStatusText()}</Text>
+            </View>
+            <Text style={styles.ocardId} selectable>{orderIdShort}</Text>
+            {dateStr ? <Text style={styles.ocardDate}>{dateStr}</Text> : null}
           </View>
-        ) : null}
-
-        <View style={styles.divider} />
-
-        {/* Financial Footer */}
-        <View style={styles.priceContainer}>
-          <View style={styles.priceBox}>
-            <Text style={styles.priceTitle}>تكلفة الشراء</Text>
-            <Text style={styles.priceNum}>{item.purchase_price ? `${item.purchase_price.toFixed(1)} ر.س` : '—'}</Text>
-          </View>
-          <View style={styles.priceBox}>
-            <Text style={styles.priceTitle}>سعر البيع</Text>
-            <Text style={styles.priceNum}>{item.sale_price ? `${item.sale_price.toFixed(1)} ر.س` : '—'}</Text>
-          </View>
-          <View style={styles.priceBox}>
-            <Text style={styles.priceTitle}>الربح الصافي</Text>
-            <Text style={[styles.priceNum, { color: (item.profit || 0) >= 0 ? colors.profitPositive : colors.profitNegative }]}>
-              {item.profit !== null ? `${item.profit >= 0 ? '+' : ''}${item.profit.toFixed(1)} ر.س` : '—'}
-            </Text>
+          
+          <View style={styles.ocardRow2}>
+            {item.purchase_price != null ? (
+              <Text style={styles.ocardPrice}>{item.purchase_price.toFixed(2)} ر.س</Text>
+            ) : null}
+            {item.profit != null ? (
+              <Text style={[styles.ocardProfit, { color: item.profit >= 0 ? colors.profitPositive : colors.profitNegative }]}>
+                {item.profit >= 0 ? '+' : ''}{item.profit.toFixed(1)}
+              </Text>
+            ) : null}
+            <View style={{flex: 1}} />
+            {item.tracking_number ? (
+              <TouchableOpacity onPress={() => copyText(item.tracking_number, 'التتبع')}>
+                <Text style={styles.ocardTrack} numberOfLines={1}>🚚 {item.tracking_number.slice(0, 14)}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -281,85 +281,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listContent: {
-    padding: 16,
-  },
-  orderCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-  },
-  cardHeader: {
-    flexDirection: 'row-reverse',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  orderDate: {
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  productTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    textAlign: 'right',
-    marginBottom: 8,
-  },
-  infoRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  infoValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    fontFamily: 'monospace',
-  },
-  copyBtn: {
-    marginRight: 6,
-    padding: 2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.divider,
-    marginVertical: 10,
-  },
-  priceContainer: {
-    flexDirection: 'row-reverse',
-    justifyContent: 'space-between',
-  },
-  priceBox: {
-    alignItems: 'center',
-  },
-  priceTitle: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    marginBottom: 2,
-  },
-  priceNum: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
+    padding: 12,
   },
   emptyContainer: {
     padding: 40,
@@ -370,5 +292,86 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: colors.textMuted,
+  },
+  /* --- Compact Card (ocard) --- */
+  ocard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 8,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  ocardImgPlace: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
+  ocardBody: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  ocardName: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    textAlign: 'right',
+    marginBottom: 4,
+  },
+  ocardRow1: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  ocardBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  ocardBadgeText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  ocardId: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontFamily: 'monospace',
+    marginLeft: 8,
+  },
+  ocardDate: {
+    fontSize: 10,
+    color: colors.textMuted,
+  },
+  ocardRow2: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+  },
+  ocardPrice: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    marginLeft: 6,
+  },
+  ocardProfit: {
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  ocardTrack: {
+    fontSize: 11,
+    color: colors.primary,
+    fontFamily: 'monospace',
+    textAlign: 'left',
   },
 });
