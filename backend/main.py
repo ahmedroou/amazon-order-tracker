@@ -38,6 +38,18 @@ app.add_middleware(
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
+# ─── Global Sync State ───────────────────────────────────
+sync_state = {
+    "is_syncing": False,
+    "percent": 0,
+    "current_subject": "",
+    "total_emails": 0,
+    "processed_emails": 0,
+    "started_at": None,
+    "last_sync": None,
+    "new_orders": 0,
+}
+
 # Mount frontend static files
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.exists(FRONTEND_DIR):
@@ -579,7 +591,17 @@ async def get_stats():
 @app.get("/api/sync/status")
 async def get_sync_status():
     """معاينة حالة المزامنة والنسبة المئوية اللحظية"""
-    return sync_state
+    global sync_state
+    return {
+        "is_syncing": sync_state.get("is_syncing", False),
+        "percent": sync_state.get("percent", 0),
+        "current_subject": sync_state.get("current_subject", ""),
+        "total_emails": sync_state.get("total_emails", 0),
+        "processed_emails": sync_state.get("processed_emails", 0),
+        "started_at": sync_state.get("started_at"),
+        "last_sync": sync_state.get("last_sync"),
+        "new_orders": sync_state.get("new_orders", 0),
+    }
 
 
 from fastapi import BackgroundTasks
