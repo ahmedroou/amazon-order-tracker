@@ -21,7 +21,10 @@
 <div id="screen-dashboard" class="screen active">
   <div class="top-bar">
     <span class="top-bar__title">📦 Amazon Tracker</span>
-    <div style="display: flex; gap: 8px; align-items: center;">
+    <div style="display: flex; gap: 6px; align-items: center;">
+      <a href="/download" class="btn btn--primary" style="padding: 6px 12px; font-size: 0.78rem; border-radius: 20px; text-decoration: none; display: flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #ea4335, #a78bfa);">
+        <span>📱</span> <span>تنزيل APK</span>
+      </a>
       <button class="btn btn--secondary" onclick="exportCSV()" title="تصدير تقرير Excel / CSV" style="padding: 6px 10px; font-size: 0.78rem; border-radius: 20px;">
         <span>📥 تصدير CSV</span>
       </button>
@@ -253,6 +256,31 @@
   </div>
 </div>
 
+<!-- ─── SCREEN: Smart Assistant ─── -->
+<div id="screen-assistant" class="screen">
+  <div class="top-bar">
+    <span class="top-bar__title">🤖 المساعد الذكي</span>
+  </div>
+  
+  <div class="chat-container">
+    <div id="chat-messages" class="chat-messages">
+      <div class="chat-message assistant">
+        مرحباً! أنا المساعد الذكي لتتبع طلبات أمازون. كيف يمكنني مساعدتك اليوم؟ (يمكنني تحليل البيانات، وتتبع الطلبات، والإجابة عن استفساراتك).
+      </div>
+    </div>
+    
+    <div class="chat-input-area">
+      <input type="text" id="chat-input" placeholder="اكتب رسالتك هنا..." class="form-input chat-input">
+      <button class="btn btn--primary chat-send-btn" onclick="sendChatMessage()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════
      MODALS
 ════════════════════════════════════════════════════════ -->
@@ -320,6 +348,12 @@
       <line x1="6" y1="20" x2="6" y2="14"/>
     </svg>
     <span>التحليلات</span>
+  </button>
+  <button class="nav-item" data-screen="assistant" onclick="navigate('assistant')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+    <span>المساعد</span>
   </button>
   <button class="nav-item" data-screen="settings" onclick="navigate('settings')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

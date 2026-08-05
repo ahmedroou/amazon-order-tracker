@@ -177,9 +177,9 @@ def parse_with_ai(email_text: str) -> Optional[Dict]:
     if not GEMINI_API_KEY:
         return None
 
-    prompt = f"""You are an expert email parser for Amazon order confirmation and status update emails.
-Extract the items from this email and return a JSON ARRAY of objects ONLY.
-Each object in the array must represent an item in the order with these keys:
+    prompt = f"""You are an expert email parser for Amazon order confirmation, shipment, and cancellation emails.
+Extract all individual items/products mentioned in this email and return a JSON ARRAY of objects ONLY.
+Each object in the array represents an item in the order with these keys:
 - amazon_order_id: string (format like 123-4567890-1234567 or null)
 - product_name: string (short clean name of the product or null)
 - purchase_price: float (price of this specific item as number or null)
@@ -188,10 +188,12 @@ Each object in the array must represent an item in the order with these keys:
 - tracking_number: string (or null)
 - carrier: string (Amazon, SMSA, Aramex, DHL, FedEx, UPS, SaudiPost or null)
 - estimated_delivery: string (or null)
-- notes: string (short Arabic observation or status reason, e.g. "تم الإلغاء لعدم التوفر" or "توصيل متوقع الخميس")
+- notes: string (short Arabic observation, e.g. "تم إلغاء هذه القطعة لعدم التوفر" or "تم إلغاء جزء من الطلب" or "توصيل متوقع الخميس")
 
-If there are multiple products in the email, return an array of multiple objects.
-If there is one product, return an array of one object.
+CRITICAL INSTRUCTIONS FOR PARTIAL CANCELLATIONS & MULTI-ITEM ORDERS:
+- If this email is a cancellation email for ONLY ONE or SOME items in an order (and not all), set status="cancelled" ONLY for the cancelled items, with appropriate notes.
+- If there are multiple products in the email, return an array of multiple objects.
+- If there is one product, return an array of one object.
 
 Email Text:
 {email_text[:3500]}
@@ -288,6 +290,7 @@ def parse_order_email(email_data: Dict, use_ai_forced: bool = False) -> List[Dic
         "tracking_url":       tracking_url,
         "estimated_delivery": estimated_delivery,
         "raw_subject":        subject,
+        "email_snippet":      snippet or (body_text[:250] if body_text else None),
         "notes":              None,
     }
 

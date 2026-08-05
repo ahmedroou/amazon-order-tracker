@@ -1,311 +1,270 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput,
-  TouchableOpacity, Image, RefreshControl
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, formatPrice } from '../theme';
-import { ApiService } from '../services/api';
+import { Ionicons } from '@expo/vector-icons';
+import { colors } from '../theme/colors';
+import { fetchStats } from '../services/api';
 
-export function AnalyticsScreen() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [period, setPeriod] = useState('all');
-  const [search, setSearch] = useState('');
+export default function AnalyticsScreen() {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchAnalytics = async () => {
-    setLoading(true);
+  const loadAnalytics = useCallback(async () => {
     try {
-      const res = await ApiService.getAnalytics(period, search);
-      setData(res);
+      const data = await fetchStats();
+      setStats(data);
     } catch (e) {
-      console.log('Fetch analytics error:', e);
+      console.log('Error loading analytics:', e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchAnalytics();
-  }, [period, search]);
+    loadAnalytics();
+  }, [loadAnalytics]);
 
-  const periods = [
-    { key: 'all', label: 'الكل' },
-    { key: 'today', label: 'اليوم' },
-    { key: '7days', label: '7 أيام' },
-    { key: '30days', label: '30 يوماً' },
-    { key: 'month', label: 'هذا الشهر' },
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  const total = (stats?.total_orders || 1);
+  const statuses = [
+    { key: 'delivered', label: 'موصّل', color: colors.statusDelivered, icon: 'checkmark-circle' },
+    { key: 'shipped', label: 'جاري الشحن', color: colors.statusShipped, icon: 'airplane' },
+    { key: 'pending', label: 'انتظار', color: colors.statusPending, icon: 'time' },
+    { key: 'cancelled', label: 'ملغي', color: colors.statusCancelled, icon: 'close-circle' },
+    { key: 'returned', label: 'مُعاد', color: colors.statusReturned, icon: 'refresh' },
   ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Top Header */}
-      <View style={styles.topBar}>
-        <Text style={styles.appTitle}>📊 تحليلات وتعداد المنتجات</Text>
-      </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAnalytics(); }} colors={[colors.primary]} />
+      }
+    >
+      <Text style={styles.headerTitle}>التحليلات والأداء</Text>
 
-      {/* Period Filter Pills */}
-      <View style={styles.filterBar}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={periods}
-          keyExtractor={item => item.key}
-          renderItem={({ item }) => {
-            const active = period === item.key;
-            return (
-              <TouchableOpacity
-                style={[styles.filterPill, active && styles.filterPillActive]}
-                onPress={() => setPeriod(item.key)}
-              >
-                <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-          contentContainerStyle={{ paddingHorizontal: 16 }}
-        />
-      </View>
-
-      {/* Stats Summary */}
-      <View style={styles.statsGrid}>
-        <View style={[styles.statCard, { borderLeftColor: COLORS.blue }]}>
-          <Text style={styles.statLabel}>إجمالي القطع</Text>
-          <Text style={styles.statValue}>{data?.total_items ?? '—'}</Text>
+      {/* Financial Summary Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="bar-chart-outline" size={20} color={colors.primary} style={{ marginLeft: 6 }} />
+          <Text style={styles.cardTitle}>الملخص المالي الشامل</Text>
         </View>
 
-        <View style={[styles.statCard, { borderLeftColor: COLORS.purple }]}>
-          <Text style={styles.statLabel}>إجمالي التكلفة</Text>
-          <Text style={styles.statValue}>{formatPrice(data?.total_spent)}</Text>
-        </View>
+        <View style={styles.financialRow}>
+          <View style={styles.finCol}>
+            <Text style={styles.finLabel}>إجمالي التكلفة</Text>
+            <Text style={[styles.finValue, { color: colors.statusCancelled }]}>
+              {stats?.total_cost ? `${stats.total_cost.toFixed(0)}` : '0'}
+            </Text>
+            <Text style={styles.finCurrency}>ر.س</Text>
+          </View>
+          <View style={styles.verticalDivider} />
 
-        <View style={[styles.statCard, { borderLeftColor: COLORS.green }]}>
-          <Text style={styles.statLabel}>منتجات فريدة</Text>
-          <Text style={styles.statValue}>{data?.unique_products ?? '—'}</Text>
-        </View>
+          <View style={styles.finCol}>
+            <Text style={styles.finLabel}>إجمالي المبيعات</Text>
+            <Text style={[styles.finValue, { color: colors.statusShipped }]}>
+              {stats?.total_revenue ? `${stats.total_revenue.toFixed(0)}` : '0'}
+            </Text>
+            <Text style={styles.finCurrency}>ر.س</Text>
+          </View>
+          <View style={styles.verticalDivider} />
 
-        <View style={[styles.statCard, { borderLeftColor: COLORS.orange }]}>
-          <Text style={styles.statLabel}>قطع ملغية</Text>
-          <Text style={styles.statValue}>{data?.status_breakdown?.cancelled ?? 0}</Text>
+          <View style={styles.finCol}>
+            <Text style={styles.finLabel}>صافي الربح</Text>
+            <Text style={[styles.finValue, { color: (stats?.total_profit || 0) >= 0 ? colors.profitPositive : colors.profitNegative }]}>
+              {stats?.total_profit ? `${stats.total_profit.toFixed(0)}` : '0'}
+            </Text>
+            <Text style={styles.finCurrency}>ر.س</Text>
+          </View>
         </View>
       </View>
 
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="🔍 ابحث عن منتج أو فئة (مثال: حفاضات، بسكويت)..."
-          placeholderTextColor={COLORS.textMuted}
-          value={search}
-          onChangeText={setSearch}
-        />
-      </View>
+      {/* Status Breakdown Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="pie-chart-outline" size={20} color={colors.primary} style={{ marginLeft: 6 }} />
+          <Text style={styles.cardTitle}>توزيع حالات الطلبات</Text>
+        </View>
 
-      {/* Product Counter List */}
-      <FlatList
-        data={data?.top_products || []}
-        keyExtractor={(item, idx) => idx.toString()}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchAnalytics} tintColor={COLORS.purple} />}
-        renderItem={({ item }) => (
-          <View style={styles.itemCard}>
-            <View style={styles.imageContainer}>
-              {item.product_image ? (
-                <Image source={{ uri: item.product_image }} style={styles.image} resizeMode="cover" />
-              ) : (
-                <Text style={styles.placeholderIcon}>📦</Text>
-              )}
-            </View>
-
-            <View style={styles.itemInfo}>
-              <Text style={styles.itemTitle} numberOfLines={2}>{item.product_name}</Text>
-              <View style={styles.countBadge}>
-                <Text style={styles.countText}>تم الشراء {item.count} مرات</Text>
+        {statuses.map((item) => {
+          const count = stats?.by_status?.[item.key] || 0;
+          const pct = Math.round((count / total) * 100);
+          return (
+            <View key={item.key} style={styles.progressRow}>
+              <View style={styles.progressHeader}>
+                <View style={styles.progressLabelGroup}>
+                  <Ionicons name={item.icon} size={15} color={item.color} style={{ marginLeft: 4 }} />
+                  <Text style={styles.progressLabel}>{item.label}</Text>
+                </View>
+                <Text style={[styles.progressPct, { color: item.color }]}>{count} ({pct}%)</Text>
+              </View>
+              <View style={styles.barBg}>
+                <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: item.color }]} />
               </View>
             </View>
+          );
+        })}
+      </View>
 
-            <View style={styles.itemRight}>
-              <Text style={styles.itemCost}>{formatPrice(item.total_cost)}</Text>
-              <Text style={styles.itemAvg}>المتوسط: {formatPrice(item.total_cost / item.count)}</Text>
+      {/* Accounts Breakdown Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="mail-outline" size={20} color={colors.primary} style={{ marginLeft: 6 }} />
+          <Text style={styles.cardTitle}>إحصائيات الحسابات المرتبطة</Text>
+        </View>
+
+        {(stats?.by_email || []).map((acc, idx) => (
+          <View key={idx} style={styles.accRow}>
+            <View style={styles.accInfo}>
+              <Ionicons name="at-outline" size={16} color={colors.primary} style={{ marginLeft: 6 }} />
+              <Text style={styles.accEmail}>{acc.email}</Text>
             </View>
+            <Text style={styles.accVal}>{acc.count} طلب  •  {acc.spent ? `${acc.spent.toFixed(0)} ر.س` : '0 ر.س'}</Text>
           </View>
-        )}
-        ListEmptyComponent={(
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📊</Text>
-            <Text style={styles.emptyTitle}>لا توجد بيانات للفترة المحددة</Text>
-          </View>
-        )}
-      />
-    </SafeAreaView>
+        ))}
+      </View>
+
+      <View style={{ height: 20 }} />
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.bgPrimary,
+    backgroundColor: colors.background,
   },
-  topBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  appTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    textAlign: 'right',
-  },
-  filterBar: {
-    paddingVertical: 10,
-  },
-  filterPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: COLORS.bgCard,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginLeft: 8,
-  },
-  filterPillActive: {
-    backgroundColor: COLORS.purple,
-    borderColor: COLORS.purpleLight,
-  },
-  filterPillText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-  },
-  filterPillTextActive: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  statCard: {
-    width: '48%',
-    backgroundColor: COLORS.bgCard,
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderLeftWidth: 4,
-    marginBottom: 8,
-  },
-  statLabel: {
-    fontSize: 10,
-    color: COLORS.textSecondary,
-    textAlign: 'right',
-    marginBottom: 2,
-  },
-  statValue: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    textAlign: 'right',
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    marginVertical: 4,
-  },
-  searchInput: {
-    backgroundColor: COLORS.bgCard,
-    borderColor: COLORS.border,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    color: COLORS.textPrimary,
-    fontSize: 12,
-    textAlign: 'right',
-  },
-  listContent: {
+  content: {
     padding: 16,
   },
-  itemCard: {
-    backgroundColor: COLORS.bgCard,
-    borderColor: COLORS.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  imageContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  centerContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 10,
-    overflow: 'hidden',
   },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholderIcon: {
-    fontSize: 20,
-  },
-  itemInfo: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  itemTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
     textAlign: 'right',
-    marginBottom: 4,
+    marginBottom: 16,
+    marginTop: 4,
   },
-  countBadge: {
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    borderColor: COLORS.purple,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  countText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.purpleLight,
+  cardHeader: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    marginBottom: 14,
   },
-  itemRight: {
-    alignItems: 'flex-start',
-    marginRight: 8,
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
   },
-  itemCost: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
+  financialRow: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
   },
-  itemAvg: {
-    fontSize: 9,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  emptyContainer: {
-    padding: 40,
+  finCol: {
+    flex: 1,
     alignItems: 'center',
   },
-  emptyIcon: {
-    fontSize: 40,
-    marginBottom: 8,
+  finLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginBottom: 4,
   },
-  emptyTitle: {
+  finValue: {
+    fontSize: 17,
+    fontWeight: 'bold',
+  },
+  finCurrency: {
+    fontSize: 10,
+    color: colors.textMuted,
+  },
+  verticalDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.divider,
+  },
+  progressRow: {
+    marginBottom: 12,
+  },
+  progressHeader: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  progressLabelGroup: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+  },
+  progressLabel: {
+    fontSize: 12,
+    color: colors.textPrimary,
+  },
+  progressPct: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  barBg: {
+    height: 8,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  accRow: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  accInfo: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+  },
+  accEmail: {
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  accVal: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: 'bold',
   },
 });

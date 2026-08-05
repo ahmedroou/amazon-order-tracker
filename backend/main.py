@@ -7,12 +7,14 @@ from datetime import datetime
 from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
+import json
+import urllib.request
 
 from database.models import init_db, SessionLocal, EmailAccount, Order, OrderStatusHistory
 from gmail_client import get_auth_url, exchange_code_for_tokens, fetch_amazon_emails
@@ -42,6 +44,31 @@ if os.path.exists(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 
+# ─── Download APK Endpoint ───────────────────────────────
+
+@app.get("/download")
+@app.get("/AmazonTracker.apk")
+async def download_apk():
+    """تحميل تطبيق الموبايل للأندرويد APK مباشرة"""
+    apk_path = os.path.join(FRONTEND_DIR, "AmazonTracker.apk")
+    if os.path.exists(apk_path):
+        return FileResponse(
+            apk_path,
+            filename="AmazonTracker.apk",
+            media_type="application/vnd.android.package-archive"
+        )
+    # Check android_app build folder if frontend apk is not there
+    built_apk = os.path.join(os.path.dirname(__file__), "..", "android_app", "app", "build", "outputs", "apk", "debug", "app-debug.apk")
+    if os.path.exists(built_apk):
+        return FileResponse(
+            built_apk,
+            filename="AmazonTracker.apk",
+            media_type="application/vnd.android.package-archive"
+        )
+    raise HTTPException(status_code=404, detail="ملف التطبيق غير موجود حالياً")
+
+
+
 # ─── Pydantic Schemas ──────────────────────────────────────
 
 class OrderUpdate(BaseModel):
@@ -49,6 +76,10 @@ class OrderUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     product_name: Optional[str] = None
+
+
+class ChatRequest(BaseModel):
+    message: str
 
 
 # ─── Startup ──────────────────────────────────────────────
@@ -404,6 +435,57 @@ async def delete_order(order_id: int):
     return {"success": True}
 
 
+# ─── Chat Assistant API ──────────────────────────────────────
+
+@app.post("/api/chat")
+async def chat_assistant(req: ChatRequest):
+    """المساعد الذكي للدردشة"""
+    import os
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_key:
+        raise HTTPException(status_code=500, detail="Gemini API Key is missing")
+
+    # جلب السياق لإعطائه للمساعد الذكي
+    with SessionLocal() as db:
+        orders = db.query(Order).order_by(Order.order_date.desc()).limit(30).all()
+        
+        # إحصائيات عامة
+        total_spent = sum((o.purchase_price or 0.0) for o in db.query(Order).all())
+        total_orders = db.query(Order).count()
+        
+        orders_summary = []
+        for o in orders:
+            orders_summary.append(f"- {o.product_name} | {o.status} | السعر: {o.purchase_price} | رقم أمازون: {o.amazon_order_id}")
+            
+    system_prompt = f"""أنت المساعد الذكي لتطبيق تتبع طلبات أمازون. لديك صلاحيات عالية للتحليل والحساب وتنظيم المعلومات.
+أجب باللغة العربية بأسلوب احترافي ومباشر.
+معلومات عن النظام الحالي:
+- إجمالي الطلبات: {total_orders}
+- إجمالي المصروفات: {total_spent} ر.س
+أحدث 30 طلب:
+{chr(10).join(orders_summary)}
+"""
+
+    payload = {
+        "contents": [
+            {"role": "user", "parts": [{"text": system_prompt + "\\n\\nرسالة المستخدم:\\n" + req.message}]}
+        ],
+        "generationConfig": {"temperature": 0.3}
+    }
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={gemini_key}"
+    headers = {"Content-Type": "application/json"}
+    
+    try:
+        req_obj = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+        with urllib.request.urlopen(req_obj, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            text_response = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            return {"reply": text_response}
+    except Exception as e:
+        logger.error(f"Chat API Error: {e}")
+        raise HTTPException(status_code=500, detail="فشل الاتصال بالذكاء الاصطناعي")
+
 # ─── Stats API ────────────────────────────────────────────
 
 @app.get("/api/stats")
@@ -684,6 +766,8 @@ async def sync_account(acc: dict, use_ai_forced: bool = False) -> int:
                         tracking_url=parsed.get("tracking_url"),
                         estimated_delivery=parsed.get("estimated_delivery"),
                         notes=parsed_notes,
+                        raw_subject=parsed.get("raw_subject") or email_data.get("subject"),
+                        email_snippet=parsed.get("email_snippet") or email_data.get("snippet"),
                         email_message_id=email_data.get("gmail_message_id"),
                     )
                     db.add(order)
@@ -734,6 +818,9 @@ def serialize_order(order: Order, include_history: bool = False) -> dict:
         "carrier": order.carrier,
         "tracking_url": order.tracking_url,
         "notes": order.notes,
+        "raw_subject": getattr(order, "raw_subject", None),
+        "email_snippet": getattr(order, "email_snippet", None),
+        "email_message_id": getattr(order, "email_message_id", None),
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "updated_at": order.updated_at.isoformat() if order.updated_at else None,
     }

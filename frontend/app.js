@@ -179,7 +179,7 @@ function renderOrderCard(o) {
     : "";
 
   const date = o.order_date ? formatDate(o.order_date) : "";
-  const notesHtml = o.notes ? `<div style="font-size:0.7rem;color:var(--accent-light);margin-top:3px;font-style:italic">🤖 ${o.notes}</div>` : "";
+  const notesTag = o.notes ? `<span class="card-notes-inline" title="${o.notes}">📝 ${o.notes}</span>` : "";
 
   return `
     <div class="order-card order-card--${o.status}" onclick="openDetail(${o.id})">
@@ -189,10 +189,10 @@ function renderOrderCard(o) {
         <div class="order-card__name">${o.product_name || 'منتج بدون اسم'}</div>
         <div class="order-card__meta">
           <span class="badge badge--${o.status}">${o.status_ar || o.status}</span>
-          <span class="order-card__email">${o.to_email || ''}</span>
+          ${o.to_email ? `<span class="order-card__email">${o.to_email}</span>` : ""}
+          ${date ? `<span class="order-card__date">${date}</span>` : ""}
+          ${notesTag}
         </div>
-        ${notesHtml}
-        ${date ? `<div style="font-size:0.68rem;color:var(--text-muted);margin-top:3px">${date}</div>` : ""}
       </div>
       <div class="order-card__right">
         <span class="order-card__price">${formatPrice(o.purchase_price)}</span>
@@ -240,6 +240,20 @@ function renderDetail(o) {
         <div class="profit-card__label">${o.profit >= 0 ? '💰 الربح الصافي' : '📉 الخسارة'}</div>
         <div class="profit-card__value">${o.profit >= 0 ? '+' : ''}${formatPrice(o.profit)}</div>
        </div>` : "";
+
+  const emailSourceCard = (o.raw_subject || o.email_snippet || o.to_email) ? `
+    <div class="info-card" style="padding:14px 16px;border-right:3px solid var(--purple)">
+      <div style="font-size:0.85rem;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+        <span>📧 البريد المستوحى منه (مصدر الطلب)</span>
+      </div>
+      ${o.raw_subject ? `<div style="font-size:0.82rem;font-weight:600;color:var(--text-primary);margin-bottom:4px">📬 ${o.raw_subject}</div>` : ""}
+      <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:6px">
+        <span>إلى: <strong style="direction:ltr;display:inline-block;color:var(--accent-light)">${o.to_email || '—'}</strong></span>
+        ${o.order_date ? ` • <span>${formatDate(o.order_date)}</span>` : ""}
+      </div>
+      ${o.email_snippet ? `<div style="font-size:0.75rem;background:rgba(255,255,255,0.04);padding:8px 10px;border-radius:6px;color:var(--text-muted);line-height:1.4">“${o.email_snippet}”</div>` : ""}
+    </div>
+  ` : "";
 
   const history = (o.history || []).map(h => `
     <div class="timeline-item">
@@ -312,6 +326,8 @@ function renderDetail(o) {
     </div>
 
     ${trackingCard}
+
+    ${emailSourceCard}
 
     <div class="info-card">
       <div class="info-row">
@@ -743,3 +759,64 @@ function renderSpendingChart(recentDays) {
     `;
   }).join("");
 }
+
+/* ─── Smart Assistant Logic ──────────────────────────── */
+async function sendChatMessage() {
+  const inputEl = document.getElementById("chat-input");
+  const messagesContainer = document.getElementById("chat-messages");
+  const text = inputEl.value.trim();
+  
+  if (!text) return;
+  
+  // Add user message
+  const userMsg = document.createElement("div");
+  userMsg.className = "chat-message user";
+  userMsg.textContent = text;
+  messagesContainer.appendChild(userMsg);
+  
+  inputEl.value = "";
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  
+  // Add loading indicator
+  const loadMsg = document.createElement("div");
+  loadMsg.className = "chat-message assistant";
+  loadMsg.textContent = "جاري التفكير...";
+  loadMsg.style.opacity = "0.7";
+  messagesContainer.appendChild(loadMsg);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text })
+    }).then(r => r.json());
+    
+    loadMsg.remove();
+    
+    if (res.reply) {
+      const astMsg = document.createElement("div");
+      astMsg.className = "chat-message assistant";
+      // Basic markdown to html replacement (bold and new lines)
+      let formattedReply = res.reply.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      formattedReply = formattedReply.replace(/\n/g, '<br>');
+      astMsg.innerHTML = formattedReply;
+      messagesContainer.appendChild(astMsg);
+    } else {
+      throw new Error("No reply");
+    }
+  } catch (e) {
+    console.error(e);
+    loadMsg.textContent = "❌ حدث خطأ في الاتصال بالمساعد الذكي.";
+    loadMsg.style.color = "var(--red)";
+  }
+  
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// Allow Enter key to send message
+document.getElementById("chat-input")?.addEventListener("keypress", function(e) {
+  if (e.key === "Enter") {
+    sendChatMessage();
+  }
+});

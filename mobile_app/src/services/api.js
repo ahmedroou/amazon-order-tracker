@@ -1,61 +1,120 @@
-// API Service Layer for React Native App
-let BASE_URL = 'https://84.8.102.52.sslip.io';
+const BASE_URL = 'https://84.8.102.52.sslip.io';
 
-export function getBaseUrl() {
-  return BASE_URL;
-}
-
-export function setBaseUrl(url) {
-  if (url) {
-    BASE_URL = url.replace(/\/$/, '');
+export async function fetchStats() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/stats`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('fetchStats error:', err);
+    throw err;
   }
 }
 
-async function request(path, options = {}) {
-  const url = `${BASE_URL}${path}`;
-  const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+export async function fetchOrders(status = null, limit = 100, offset = 0) {
+  try {
+    let url = `${BASE_URL}/api/orders?limit=${limit}&offset=${offset}`;
+    if (status) url += `&status=${encodeURIComponent(status)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('fetchOrders error:', err);
+    throw err;
   }
-
-  return response.json();
 }
 
-export const ApiService = {
-  getStats: () => request('/api/stats'),
-  getOrders: (params = {}) => {
-    const query = new URLSearchParams();
-    if (params.status) query.append('status', params.status);
-    if (params.limit) query.append('limit', params.limit);
-    if (params.offset) query.append('offset', params.offset);
-    return request(`/api/orders?${query.toString()}`);
-  },
-  getOrderDetail: (id) => request(`/api/orders/${id}`),
-  updateOrder: (id, payload) => request(`/api/orders/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  }),
-  deleteOrder: (id) => request(`/api/orders/${id}`, { method: 'DELETE' }),
-  
-  getAnalytics: (period = 'all', search = '') => {
-    const query = new URLSearchParams({ period });
-    if (search) query.append('search', search);
-    return request(`/api/analytics?${query.toString()}`);
-  },
-  
-  exportOrdersUrl: () => `${BASE_URL}/api/orders/export`,
-  
-  triggerSync: () => request('/api/sync', { method: 'POST' }),
-  triggerAISync: () => request('/api/sync/ai', { method: 'POST' }),
-  getSyncStatus: () => request('/api/sync/status'),
-  
-  getAccounts: () => request('/api/accounts'),
-  deleteAccount: (id) => request(`/api/accounts/${id}`, { method: 'DELETE' }),
+export async function fetchSyncStatus() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/sync/status`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('fetchSyncStatus error:', err);
+    return { is_syncing: false, progress: 0, message: null };
+  }
+}
+
+export async function triggerSync(aiMode = false) {
+  try {
+    const endpoint = aiMode ? '/api/sync/ai' : '/api/sync';
+    const res = await fetch(`${BASE_URL}${endpoint}`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('triggerSync error:', err);
+    throw err;
+  }
+}
+
+export function getExportUrl() {
+  return `${BASE_URL}/api/orders/export`;
+}
+
+export async function sendChatMessage(message) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('sendChatMessage error:', err);
+    throw err;
+  }
+}
+
+export async function fetchAccounts() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/accounts`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('fetchAccounts error:', err);
+    throw err;
+  }
+}
+
+export async function deleteAccount(accountId) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/accounts/${accountId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('deleteAccount error:', err);
+    throw err;
+  }
+}
+
+export async function syncAccountManual(accountId) {
+  try {
+    const res = await fetch(`${BASE_URL}/api/accounts/${accountId}/sync`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.error('syncAccountManual error:', err);
+    throw err;
+  }
+}
+
+export function getAddAccountUrl() {
+  return `${BASE_URL}/auth/gmail`;
+}
+
+export default {
+  fetchStats,
+  fetchOrders,
+  fetchSyncStatus,
+  triggerSync,
+  getExportUrl,
+  sendChatMessage,
+  fetchAccounts,
+  deleteAccount,
+  syncAccountManual,
+  getAddAccountUrl,
 };
+

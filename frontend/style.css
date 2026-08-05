@@ -255,18 +255,18 @@ body {
 }
 
 /* ─── Orders List ───────────────────────────────────── */
-.orders-list { display: flex; flex-direction: column; gap: 8px; }
-.orders-list.padded { padding: 12px 16px; }
+.orders-list { display: flex; flex-direction: column; gap: 5px; }
+.orders-list.padded { padding: 8px 12px; }
 
 .order-card {
   position: relative;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 12px 12px 32px;
+  border-radius: var(--radius-sm);
+  padding: 6px 8px 6px 26px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   cursor: pointer;
   transition: var(--transition);
   backdrop-filter: blur(10px);
@@ -274,6 +274,7 @@ body {
   width: 100%;
   text-decoration: none;
   color: inherit;
+  min-height: 52px;
 }
 .order-card:hover, .order-card:active {
   background: var(--bg-card-hover);
@@ -283,20 +284,21 @@ body {
 
 .card-quick-delete {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 5px;
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: #ef4444;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   cursor: pointer;
-  opacity: 0.65;
+  opacity: 0.6;
   transition: all 0.2s ease;
   z-index: 2;
 }
@@ -304,63 +306,80 @@ body {
 .card-quick-delete:hover {
   opacity: 1;
   background: rgba(239, 68, 68, 0.3);
-  transform: scale(1.1);
+  transform: translateY(-50%) scale(1.1);
 }
 
 .order-card__img {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
   object-fit: cover;
   background: rgba(255,255,255,0.08);
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.4rem;
+  font-size: 1.1rem;
 }
 
 .order-card__info { flex: 1; min-width: 0; }
 .order-card__name {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-primary);
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  line-height: 1.35;
-  margin-bottom: 5px;
+  line-height: 1.25;
+  margin-bottom: 2px;
 }
 .order-card__meta {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 .order-card__email {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 150px;
+  max-width: 120px;
+}
+.order-card__date {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.card-notes-inline {
+  font-size: 0.65rem;
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.12);
+  padding: 1px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
 }
 
 .order-card__right {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
+  align-items: flex-end;
+  gap: 2px;
   flex-shrink: 0;
 }
 .order-card__price {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-primary);
 }
 .order-card__profit {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 600;
 }
 .order-card__profit.positive { color: var(--green); }
@@ -1026,4 +1045,65 @@ body {
   box-shadow: 0 0 12px rgba(52,211,153,0.15);
 }
 
-
+/* ─── Smart Assistant Chat ───────────────────────────── */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+}
+.chat-messages {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.chat-message {
+  max-width: 85%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  animation: fadeIn 0.3s ease;
+}
+.chat-message.assistant {
+  align-self: flex-start;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-bottom-right-radius: 4px;
+  color: var(--text-primary);
+}
+.chat-message.user {
+  align-self: flex-end;
+  background: var(--purple);
+  color: #ffffff;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 4px 12px rgba(139,92,246,0.3);
+}
+.chat-input-area {
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.chat-input {
+  flex: 1;
+  border-radius: 20px;
+  padding: 10px 16px;
+}
+.chat-send-btn {
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -76,6 +76,10 @@ class Order(Base):
     tracking_url = Column(Text, nullable=True)                 # رابط التتبع المباشر
     notes = Column(Text, nullable=True)                        # ملاحظات يدوية
 
+    # بيانات الإيميل المصدر
+    raw_subject = Column(String(500), nullable=True)           # عنوان الرسالة الأصلي
+    email_snippet = Column(Text, nullable=True)                # ملخص/نص الرسالة الأصلي
+
     # بيانات النظام
     email_message_id = Column(String(255), nullable=True)  # ID الرسالة في Gmail
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -119,3 +123,17 @@ class OrderStatusHistory(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    # الهجرة التلقائية لإضافة الأعمدة الجديدة لـ SQLite إن لم تكن موجودة
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(engine)
+        columns = [c['name'] for c in inspector.get_columns('orders')]
+        with engine.connect() as conn:
+            if 'raw_subject' not in columns:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN raw_subject VARCHAR(500)"))
+            if 'email_snippet' not in columns:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN email_snippet TEXT"))
+            conn.commit()
+    except Exception as e:
+        print(f"Auto-migration note: {e}")
+
