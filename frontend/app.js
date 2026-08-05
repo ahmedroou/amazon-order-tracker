@@ -24,6 +24,7 @@ function navigate(screen) {
   if (screen === "orders")    loadOrders();
   if (screen === "analytics") loadAnalytics();
   if (screen === "settings")  loadSettings();
+  if (screen === "accounts")  loadAccounts();
 }
 
 function goBack() {
@@ -45,7 +46,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     showToast("❌ فشل ربط Gmail. حاول مجدداً.", "error");
     history.replaceState({}, "", "/");
   }
-});
+
+  // Load nav badge for accounts warnings
+  updateAccountsBadge();
+});;
 
 // ─── Dashboard ───────────────────────────────
 
@@ -825,3 +829,189 @@ document.getElementById("chat-input")?.addEventListener("keypress", function(e) 
     sendChatMessage();
   }
 });
+
+// ─── Accounts Health ────────────────────────────────
+
+let allAccountsData = [];
+let currentAccountFilter = "all";
+
+const healthLabels = {
+  healthy:  { icon: "✅", text: "سليمة",   cls: "healthy" },
+  warning:  { icon: "⚠️", text: "تحذير",  cls: "warning" },
+  error:    { icon: "❌", text: "خطأ",    cls: "error" },
+  revoked:  { icon: "🔴", text: "منتهي Token", cls: "revoked" },
+  inactive: { icon: "⏸️", text: "معطل",   cls: "inactive" },
+  unknown:  { icon: "❓", text: "غير معروف", cls: "unknown" },
+};
+
+async function loadAccounts() {
+  const container = document.getElementById("accounts-health-list");
+  if (!container) return;
+  container.innerHTML = `<div class="empty-state"><div class="empty-state__icon">⏳</div><div class="empty-state__title">جاري تحميل...</div></div>`;
+
+  try {
+    const data = await fetch(`${API}/api/accounts/health`).then(r => r.json());
+    allAccountsData = data;
+    renderAccountsList();
+    updateAccountsSummary();
+    updateAccountsBadge();
+  } catch(e) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-state__icon">❌</div><div class="empty-state__title">خطأ في تحميل البيانات</div></div>`;
+    console.error(e);
+  }
+}
+
+function renderAccountsList() {
+  const container = document.getElementById("accounts-health-list");
+  if (!container) return;
+
+  const filtered = currentAccountFilter === "all"
+    ? allAccountsData
+    : allAccountsData.filter(a => a.health_status === currentAccountFilter);
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-state__icon">👥</div>
+      <div class="empty-state__title">لا توجد حسابات بهذا التصنيف</div>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(a => renderAccountCard(a)).join("");
+}
+
+function renderAccountCard(a) {
+  const h = healthLabels[a.health_status] || healthLabels.unknown;
+  const initials = (a.email || "?")[0].toUpperCase();
+
+  const lastSync = a.last_synced
+    ? `• مزامنة: ${formatDate(a.last_synced)}`
+    : `• لم تتم مزامنة`;
+
+  const lastOrder = a.days_since_order !== null && a.days_since_order !== undefined
+    ? `• آخر طلب: منذ ${a.days_since_order} يوم`
+    : `• لا توجد طلبات`;
+
+  const failBadge = a.consecutive_failures > 0
+    ? `<span style="color:var(--red);font-size:0.68rem;">• فشل ${a.consecutive_failures}× متتالي</span>`
+    : "";
+
+  const errorBlock = a.last_error
+    ? `<div class="acc-card__error">⚠️ ${a.last_error}</div>` : "";
+
+  const tokenWarning = !a.has_token
+    ? `<div class="acc-card__error">🔐 لا يوجد تفويض OAuth — أعد ربط الحساب</div>` : "";
+
+  const reconnectBtn = (a.health_status === "revoked" || !a.has_token)
+    ? `<button class="acc-action-btn acc-action-btn--primary" onclick="reconnectAccount('${a.email}')">🔗 إعادة ربط</button>` : "";
+
+  return `
+    <div class="acc-card acc-card--${h.cls}">
+      <div class="acc-card__header">
+        <div class="acc-card__avatar">${initials}</div>
+        <div class="acc-card__info">
+          <div class="acc-card__email" title="${a.email}">${a.email}</div>
+          <span class="acc-card__status-badge badge--${h.cls}">${h.icon} ${h.text}</span>
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-muted);text-align:center;">
+          <div style="font-weight:700;font-size:1rem;color:var(--text-primary);">${a.order_count}</div>
+          <div>طلبات</div>
+        </div>
+      </div>
+
+      <div class="acc-card__meta">
+        <span>${lastSync}</span>
+        <span>${lastOrder}</span>
+        ${failBadge}
+      </div>
+
+      ${errorBlock}${tokenWarning}
+
+      <div class="acc-card__actions">
+        <button class="acc-action-btn" onclick="healthCheckAccount(${a.id}, this)">🔍 فحص</button>
+        <button class="acc-action-btn" onclick="syncOneAccount(${a.id}, this)">🔄 مزامنة</button>
+        ${reconnectBtn}
+        <button class="acc-action-btn acc-action-btn--danger" onclick="deleteAccountFromHealth(${a.id})">🗑️ حذف</button>
+      </div>
+    </div>
+  `;
+}
+
+function updateAccountsSummary() {
+  const counts = { healthy: 0, warning: 0, error: 0, revoked: 0, inactive: 0, unknown: 0 };
+  allAccountsData.forEach(a => {
+    counts[a.health_status] = (counts[a.health_status] || 0) + 1;
+  });
+  const el = id => document.getElementById(id);
+  if (el("acc-count-healthy"))  el("acc-count-healthy").textContent  = counts.healthy;
+  if (el("acc-count-warning"))  el("acc-count-warning").textContent  = counts.warning + counts.unknown;
+  if (el("acc-count-error"))    el("acc-count-error").textContent    = counts.error;
+  if (el("acc-count-revoked"))  el("acc-count-revoked").textContent  = counts.revoked + counts.inactive;
+}
+
+async function updateAccountsBadge() {
+  try {
+    const data = await fetch(`${API}/api/accounts/health`).then(r => r.json());
+    const bad = data.filter(a => ["error","revoked","warning"].includes(a.health_status)).length;
+    const badge = document.getElementById("accounts-nav-badge");
+    if (badge) {
+      if (bad > 0) {
+        badge.textContent = bad;
+        badge.classList.remove("hidden");
+      } else {
+        badge.classList.add("hidden");
+      }
+    }
+  } catch(e) {}
+}
+
+function filterAccounts(filter, btn) {
+  currentAccountFilter = filter;
+  document.querySelectorAll("#accounts-filter-bar .filter-pill").forEach(p => p.classList.remove("active"));
+  if (btn) btn.classList.add("active");
+  renderAccountsList();
+}
+
+async function healthCheckAccount(accountId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "⏳..."; }
+  try {
+    const res = await fetch(`${API}/api/accounts/${accountId}/health-check`, { method: "POST" }).then(r => r.json());
+    const h = healthLabels[res.health_status] || healthLabels.unknown;
+    showToast(`${h.icon} نتيجة الفحص: ${h.text}`);
+    await loadAccounts();
+  } catch(e) {
+    showToast("❌ خطأ في الفحص", "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "🔍 فحص"; }
+  }
+}
+
+async function syncOneAccount(accountId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "⏳..."; }
+  try {
+    const res = await fetch(`${API}/api/accounts/${accountId}/sync`, { method: "POST" }).then(r => r.json());
+    showToast(res.success !== false ? "✅ تمت المزامنة بنجاح" : `⚠️ ${res.message}`);
+    await loadAccounts();
+  } catch(e) {
+    showToast("❌ خطأ في المزامنة", "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "🔄 مزامنة"; }
+  }
+}
+
+function reconnectAccount(email) {
+  showToast("🔗 جاري فتح نافذة المصادقة...");
+  setTimeout(() => { window.location.href = `${API}/auth/gmail`; }, 800);
+}
+
+async function deleteAccountFromHealth(accountId) {
+  if (!confirm("هل تريد حذف هذا الحساب وكل طلباته نهائياً؟")) return;
+  try {
+    await fetch(`${API}/api/accounts/${accountId}`, { method: "DELETE" });
+    showToast("✅ تم حذف الحساب");
+    await loadAccounts();
+    updateAccountsBadge();
+  } catch(e) {
+    showToast("❌ خطأ في الحذف", "error");
+  }
+}

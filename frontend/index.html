@@ -320,6 +320,57 @@
   </div>
 </div>
 
+<!-- ════════════════════════════════════════════════════════
+     SCREEN: Accounts Health
+════════════════════════════════════════════════════════ -->
+<div id="screen-accounts" class="screen">
+  <div class="top-bar">
+    <span class="top-bar__title">👥 حالة الحسابات</span>
+    <button class="btn btn--primary" onclick="navigate('settings')" style="padding:6px 12px;font-size:0.78rem;border-radius:20px;">
+      ➕ إضافة حساب
+    </button>
+  </div>
+
+  <div class="accounts-content">
+    <!-- ملخص الحالة -->
+    <div class="accounts-summary" id="accounts-summary">
+      <div class="acc-stat-card acc-stat--healthy">
+        <span class="acc-stat__num" id="acc-count-healthy">0</span>
+        <span class="acc-stat__label">✅ سليمة</span>
+      </div>
+      <div class="acc-stat-card acc-stat--warning">
+        <span class="acc-stat__num" id="acc-count-warning">0</span>
+        <span class="acc-stat__label">⚠️ تحذير</span>
+      </div>
+      <div class="acc-stat-card acc-stat--error">
+        <span class="acc-stat__num" id="acc-count-error">0</span>
+        <span class="acc-stat__label">❌ خطأ</span>
+      </div>
+      <div class="acc-stat-card acc-stat--revoked">
+        <span class="acc-stat__num" id="acc-count-revoked">0</span>
+        <span class="acc-stat__label">🔴 منتهي</span>
+      </div>
+    </div>
+
+    <!-- فلترة -->
+    <div class="filter-bar" id="accounts-filter-bar">
+      <button class="filter-pill active" onclick="filterAccounts('all', this)">الكل</button>
+      <button class="filter-pill" onclick="filterAccounts('healthy', this)">✅ سليمة</button>
+      <button class="filter-pill" onclick="filterAccounts('warning', this)">⚠️ تحذير</button>
+      <button class="filter-pill" onclick="filterAccounts('error', this)">❌ خطأ</button>
+      <button class="filter-pill" onclick="filterAccounts('revoked', this)">🔴 منتهي</button>
+    </div>
+
+    <!-- لائحة الحسابات -->
+    <div id="accounts-health-list" class="accounts-list">
+      <div class="empty-state">
+        <div class="empty-state__icon">👥</div>
+        <div class="empty-state__title">جاري تحميل الحسابات...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast" class="toast hidden"></div>
 
@@ -342,18 +393,22 @@
     </svg>
     <span>الطلبات</span>
   </button>
+  <button class="nav-item" data-screen="accounts" onclick="navigate('accounts')" style="position:relative;">
+    <span id="accounts-nav-badge" class="nav-badge hidden"></span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+    <span>الحسابات</span>
+  </button>
   <button class="nav-item" data-screen="analytics" onclick="navigate('analytics')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
       <line x1="6" y1="20" x2="6" y2="14"/>
     </svg>
     <span>التحليلات</span>
-  </button>
-  <button class="nav-item" data-screen="assistant" onclick="navigate('assistant')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-    </svg>
-    <span>المساعد</span>
   </button>
   <button class="nav-item" data-screen="settings" onclick="navigate('settings')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

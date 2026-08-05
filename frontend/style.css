@@ -1107,3 +1107,196 @@ body {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ─── Accounts Health Page ───────────────────────────── */
+.accounts-content {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.accounts-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.acc-stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  transition: var(--transition);
+}
+.acc-stat--healthy  { border-color: rgba(16,185,129,0.35); box-shadow: 0 0 12px rgba(16,185,129,0.1); }
+.acc-stat--warning  { border-color: rgba(245,158,11,0.35); box-shadow: 0 0 12px rgba(245,158,11,0.1); }
+.acc-stat--error    { border-color: rgba(239,68,68,0.35);  box-shadow: 0 0 12px rgba(239,68,68,0.1); }
+.acc-stat--revoked  { border-color: rgba(239,68,68,0.2);   box-shadow: 0 0 12px rgba(239,68,68,0.05); }
+
+.acc-stat__num {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.acc-stat--healthy .acc-stat__num  { color: var(--green); }
+.acc-stat--warning .acc-stat__num  { color: var(--orange); }
+.acc-stat--error   .acc-stat__num  { color: var(--red); }
+.acc-stat--revoked .acc-stat__num  { color: #e05252; }
+
+.acc-stat__label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* Account health cards */
+.accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acc-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: fadeIn 0.3s ease;
+  transition: var(--transition);
+}
+.acc-card:hover { background: var(--bg-card-hover); }
+.acc-card--healthy { border-right: 3px solid var(--green); }
+.acc-card--warning { border-right: 3px solid var(--orange); }
+.acc-card--error   { border-right: 3px solid var(--red); }
+.acc-card--revoked { border-right: 3px solid #e05252; }
+.acc-card--inactive{ border-right: 3px solid var(--text-muted); opacity: 0.6; }
+.acc-card--unknown { border-right: 3px solid var(--border); }
+
+.acc-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.acc-card__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.acc-card--healthy .acc-card__avatar { background: rgba(16,185,129,0.15); color: var(--green); }
+.acc-card--warning .acc-card__avatar { background: rgba(245,158,11,0.15); color: var(--orange); }
+.acc-card--error   .acc-card__avatar { background: rgba(239,68,68,0.15);  color: var(--red); }
+.acc-card--revoked .acc-card__avatar { background: rgba(239,68,68,0.1);   color: #e05252; }
+.acc-card--inactive .acc-card__avatar{ background: rgba(148,163,184,0.1); color: var(--text-muted); }
+.acc-card--unknown .acc-card__avatar { background: rgba(255,255,255,0.05);color: var(--text-muted); }
+
+.acc-card__info { flex: 1; min-width: 0; }
+.acc-card__email {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acc-card__status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-top: 3px;
+}
+.badge--healthy { background: rgba(16,185,129,0.15); color: var(--green); }
+.badge--warning { background: rgba(245,158,11,0.15); color: var(--orange); }
+.badge--error   { background: rgba(239,68,68,0.15);  color: var(--red); }
+.badge--revoked { background: rgba(239,68,68,0.1);   color: #e05252; }
+.badge--inactive{ background: rgba(148,163,184,0.1); color: var(--text-muted); }
+.badge--unknown { background: rgba(255,255,255,0.05);color: var(--text-muted); }
+
+.acc-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+.acc-card__meta span { display: flex; align-items: center; gap: 3px; }
+
+.acc-card__error {
+  font-size: 0.7rem;
+  color: var(--red);
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  line-height: 1.4;
+  direction: ltr;
+  text-align: left;
+}
+
+.acc-card__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.acc-action-btn {
+  flex: 1;
+  min-width: 70px;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--font);
+}
+.acc-action-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+.acc-action-btn--primary { background: rgba(139,92,246,0.15); color: var(--purple); border-color: rgba(139,92,246,0.3); }
+.acc-action-btn--primary:hover { background: rgba(139,92,246,0.25); }
+.acc-action-btn--danger  { background: rgba(239,68,68,0.1); color: var(--red); border-color: rgba(239,68,68,0.25); }
+.acc-action-btn--danger:hover  { background: rgba(239,68,68,0.2); }
+
+/* Nav badge */
+.nav-badge {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(4px);
+  background: var(--red);
+  color: #fff;
+  font-size: 0.55rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 20px;
+  min-width: 16px;
+  text-align: center;
+  z-index: 10;
+}
+.nav-badge.hidden { display: none; }

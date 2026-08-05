@@ -229,13 +229,122 @@ async def get_accounts():
                 "email": a.email,
                 "display_name": a.display_name,
                 "status": getattr(a, "status", "active") or "active",
+                "health_status": getattr(a, "health_status", "unknown") or "unknown",
+                "health_checked_at": a.health_checked_at.isoformat() if getattr(a, "health_checked_at", None) else None,
+                "consecutive_failures": getattr(a, "consecutive_failures", 0) or 0,
                 "last_error": getattr(a, "last_error", None),
                 "last_synced": a.last_synced.isoformat() if a.last_synced else None,
+                "last_order_at": a.last_order_at.isoformat() if getattr(a, "last_order_at", None) else None,
                 "order_count": db.query(Order).filter_by(account_id=a.id).count(),
+                "has_token": bool(a.access_token),
             }
             for a in accounts
         ]
 
+
+
+@app.get("/api/accounts/health")
+async def get_accounts_health():
+    """صفحة صحة الحسابات — مصنّفة حسب الحالة"""
+    from datetime import timezone
+    now = datetime.utcnow()
+    with SessionLocal() as db:
+        accounts = db.query(EmailAccount).all()
+        result = []
+        for a in accounts:
+            last_order = db.query(Order).filter_by(account_id=a.id).order_by(Order.order_date.desc()).first()
+            days_since_order = None
+            if last_order and last_order.order_date:
+                days_since_order = (now - last_order.order_date).days
+
+            # حساب حالة الصحة تلقائياً
+            health = getattr(a, "health_status", "unknown") or "unknown"
+            failures = getattr(a, "consecutive_failures", 0) or 0
+            if not a.is_active:
+                health = "inactive"
+            elif a.status in ("auth_error", "revoked"):
+                health = "revoked"
+            elif failures >= 3:
+                health = "error"
+            elif failures >= 1:
+                health = "warning"
+            elif days_since_order is not None and days_since_order > 30:
+                health = "warning"
+            elif a.last_synced:
+                health = "healthy"
+
+            result.append({
+                "id": a.id,
+                "email": a.email,
+                "display_name": a.display_name,
+                "is_active": a.is_active,
+                "health_status": health,
+                "status": getattr(a, "status", "active") or "active",
+                "last_error": getattr(a, "last_error", None),
+                "last_synced": a.last_synced.isoformat() if a.last_synced else None,
+                "last_order_at": last_order.order_date.isoformat() if (last_order and last_order.order_date) else None,
+                "days_since_order": days_since_order,
+                "consecutive_failures": failures,
+                "order_count": db.query(Order).filter_by(account_id=a.id).count(),
+                "has_token": bool(a.access_token),
+                "health_checked_at": a.health_checked_at.isoformat() if getattr(a, "health_checked_at", None) else None,
+            })
+        # ترتيب: error أولا ثم warning ثم healthy
+        order_map = {"revoked": 0, "error": 1, "warning": 2, "unknown": 3, "healthy": 4, "inactive": 5}
+        result.sort(key=lambda x: order_map.get(x["health_status"], 3))
+        return result
+
+
+@app.post("/api/accounts/{account_id}/health-check")
+async def manual_health_check(account_id: int):
+    """فحص صحة حساب محدد يدوياً"""
+    with SessionLocal() as db:
+        account = db.query(EmailAccount).filter_by(id=account_id).first()
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+
+        new_health = "unknown"
+        error_msg = None
+
+        if not account.access_token:
+            new_health = "revoked"
+            error_msg = "لا يوجد token مصادقة — أعد ربط الحساب"
+        else:
+            try:
+                from gmail_client import build_credentials, refresh_if_needed
+                from google.auth.exceptions import RefreshError
+                creds = build_credentials(
+                    account.access_token,
+                    account.refresh_token,
+                    account.token_expiry
+                )
+                creds = refresh_if_needed(creds)
+                account.access_token = creds.token
+                if creds.expiry:
+                    account.token_expiry = creds.expiry
+                new_health = "healthy"
+                account.consecutive_failures = 0
+            except Exception as e:
+                error_str = str(e).lower()
+                if "invalid_grant" in error_str or "revoked" in error_str or "unauthorized" in error_str:
+                    new_health = "revoked"
+                    account.status = "auth_error"
+                else:
+                    new_health = "error"
+                error_msg = str(e)[:300]
+                account.consecutive_failures = (getattr(account, "consecutive_failures", 0) or 0) + 1
+
+        account.health_status = new_health
+        account.health_checked_at = datetime.utcnow()
+        if error_msg:
+            account.last_error = error_msg
+        db.commit()
+
+        return {
+            "success": True,
+            "health_status": new_health,
+            "error": error_msg
+        }
 
 
 @app.delete("/api/accounts/{account_id}")
@@ -506,10 +615,28 @@ async def chat_assistant(req: ChatRequest):
         # إحصائيات عامة
         total_spent = sum((o.purchase_price or 0.0) for o in db.query(Order).all())
         total_orders = db.query(Order).count()
-        
-        orders_summary = []
-        for o in orders:
-            orders_summary.append(f"- {o.product_name} | {o.status} | السعر: {o.purchase_price} | رقم أمازون: {o.amazon_order_id}")
+
+        # معلومات صحة الحسابات
+        accounts = db.query(EmailAccount).all()
+        accounts_health_summary = []
+        now = datetime.utcnow()
+        for a in accounts:
+            h = getattr(a, "health_status", "unknown") or "unknown"
+            failures = getattr(a, "consecutive_failures", 0) or 0
+            last_order = db.query(Order).filter_by(account_id=a.id).order_by(Order.order_date.desc()).first()
+            days_since = None
+            if last_order and last_order.order_date:
+                days_since = (now - last_order.order_date).days
+            err_info = f" | خطأ: {a.last_error[:80]}" if a.last_error else ""
+            accounts_health_summary.append(
+                f"- {a.email} | الحالة: {h} | فشل متتالي: {failures} | "
+                f"آخر طلب: {'%d يوم' % days_since if days_since is not None else 'لا يوجد'}{err_info}"
+            )
+
+        orders_summary = [
+            f"- {o.product_name} | {o.status} | السعر: {o.purchase_price} | رقم أمازون: {o.amazon_order_id}"
+            for o in orders
+        ]
             
     system_prompt = f"""أنت المساعد الذكي لتطبيق تتبع طلبات أمازون. لديك صلاحيات عالية للتحليل والحساب وتنظيم المعلومات.
 أجب باللغة العربية بأسلوب احترافي ومباشر.
@@ -667,6 +794,14 @@ async def sync_all_accounts(use_ai_forced: bool = False) -> int:
 
         for acc in accounts_data:
             if not acc["access_token"]:
+                # لا يوجد token — تحديث الحالة
+                with SessionLocal() as db:
+                    a = db.query(EmailAccount).filter_by(id=acc["id"]).first()
+                    if a:
+                        a.health_status = "revoked"
+                        a.last_error = "لا يوجد token مصادقة — أعد ربط الحساب"
+                        a.health_checked_at = datetime.utcnow()
+                        db.commit()
                 continue
             try:
                 new_count = await sync_account(acc, use_ai_forced=use_ai_forced)
@@ -676,14 +811,31 @@ async def sync_all_accounts(use_ai_forced: bool = False) -> int:
                     if a:
                         a.status = "active"
                         a.last_error = None
+                        a.consecutive_failures = 0
+                        a.health_status = "healthy"
+                        a.health_checked_at = datetime.utcnow()
+                        # تحديث last_order_at
+                        last_ord = db.query(Order).filter_by(account_id=a.id).order_by(Order.order_date.desc()).first()
+                        if last_ord and last_ord.order_date:
+                            a.last_order_at = last_ord.order_date
                         db.commit()
             except Exception as e:
                 logger.error(f"Error syncing {acc['email']}: {e}")
                 with SessionLocal() as db:
                     a = db.query(EmailAccount).filter_by(id=acc["id"]).first()
                     if a:
-                        a.status = "auth_error"
-                        a.last_error = str(e)
+                        failures = (getattr(a, "consecutive_failures", 0) or 0) + 1
+                        a.consecutive_failures = failures
+                        a.last_error = str(e)[:300]
+                        a.health_checked_at = datetime.utcnow()
+                        err_str = str(e).lower()
+                        if "invalid_grant" in err_str or "revoked" in err_str or "unauthorized" in err_str:
+                            a.status = "auth_error"
+                            a.health_status = "revoked"
+                        elif failures >= 3:
+                            a.health_status = "error"
+                        else:
+                            a.health_status = "warning"
                         db.commit()
 
         logger.info(f"✅ Sync complete ({mode_str}). New orders: {total_new}")

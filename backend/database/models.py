@@ -37,6 +37,12 @@ class EmailAccount(Base):
     last_synced = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # ─── حقول الصحة الجديدة ───────────────────────────────
+    health_status = Column(String(30), default="unknown")        # healthy/warning/error/revoked/inactive/unknown
+    health_checked_at = Column(DateTime, nullable=True)           # آخر فحص صحي
+    consecutive_failures = Column(Integer, default=0)             # عدد الفشل المتتالي
+    last_order_at = Column(DateTime, nullable=True)               # تاريخ آخر طلب مكتشف
+
     orders = relationship("Order", back_populates="account", cascade="all, delete-orphan")
 
 
@@ -123,16 +129,31 @@ class OrderStatusHistory(Base):
 
 def init_db():
     Base.metadata.create_all(bind=engine)
-    # الهجرة التلقائية لإضافة الأعمدة الجديدة لـ SQLite إن لم تكن موجودة
+    # الهجرة التلقائية لإضافة الأعمدة الجديدة
     try:
         from sqlalchemy import inspect, text
         inspector = inspect(engine)
-        columns = [c['name'] for c in inspector.get_columns('orders')]
+
+        # هجرة جدول orders
+        order_cols = [c['name'] for c in inspector.get_columns('orders')]
         with engine.connect() as conn:
-            if 'raw_subject' not in columns:
+            if 'raw_subject' not in order_cols:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN raw_subject VARCHAR(500)"))
-            if 'email_snippet' not in columns:
+            if 'email_snippet' not in order_cols:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN email_snippet TEXT"))
+            conn.commit()
+
+        # هجرة جدول email_accounts — حقول الصحة الجديدة
+        acc_cols = [c['name'] for c in inspector.get_columns('email_accounts')]
+        with engine.connect() as conn:
+            if 'health_status' not in acc_cols:
+                conn.execute(text("ALTER TABLE email_accounts ADD COLUMN health_status VARCHAR(30) DEFAULT 'unknown'"))
+            if 'health_checked_at' not in acc_cols:
+                conn.execute(text("ALTER TABLE email_accounts ADD COLUMN health_checked_at TIMESTAMP"))
+            if 'consecutive_failures' not in acc_cols:
+                conn.execute(text("ALTER TABLE email_accounts ADD COLUMN consecutive_failures INTEGER DEFAULT 0"))
+            if 'last_order_at' not in acc_cols:
+                conn.execute(text("ALTER TABLE email_accounts ADD COLUMN last_order_at TIMESTAMP"))
             conn.commit()
     except Exception as e:
         print(f"Auto-migration note: {e}")
