@@ -77,10 +77,10 @@ export default function AccountsScreen({ navigation }) {
                 هذه الحسابات تم اكتشافها تلقائياً من خلال الإيميل المستلم للطلبات (مثل Aliases).
               </Text>
 
-              {data.amazon_accounts.length === 0 ? (
-                <Text style={{ textAlign: 'center', marginTop: 10 }}>لا توجد حسابات أمازون مسجلة بعد</Text>
+              {(data.amazon_accounts || []).length === 0 ? (
+                <Text style={{ textAlign: 'center', marginTop: 10, color: colors.textMuted }}>لا توجد حسابات أمازون مسجلة بعد</Text>
               ) : (
-                data.amazon_accounts.map((acc, index) => (
+                (data.amazon_accounts || []).map((acc, index) => (
                   <View key={index} style={[styles.card, !acc.is_active && styles.cardInactive]}>
                     <View style={styles.cardHeader}>
                       <View style={[styles.avatar, { backgroundColor: getAvatarColor(acc.to_email) }]}>
@@ -122,14 +122,18 @@ export default function AccountsScreen({ navigation }) {
                 <Text style={styles.sectionTitle}>ملخص حسابات Gmail</Text>
               </View>
 
-              {data.gmail_accounts.map((acc, index) => (
-                <View key={index} style={styles.gmailCard}>
-                  <Text style={styles.gmailEmail}>{acc.email}</Text>
-                  <Text style={styles.gmailStatus}>
-                    الحالة: {acc.health_status === 'healthy' ? '✅ متصل' : '❌ يحتاج صيانة'}
-                  </Text>
-                </View>
-              ))}
+              {(data.gmail_accounts || []).length === 0 ? (
+                <Text style={{ textAlign: 'center', marginTop: 10, color: colors.textMuted }}>لا توجد حسابات Gmail مرتبطة بعد</Text>
+              ) : (
+                (data.gmail_accounts || []).map((acc, index) => (
+                  <View key={index} style={styles.gmailCard}>
+                    <Text style={styles.gmailEmail}>{acc.email}</Text>
+                    <Text style={styles.gmailStatus}>
+                      الحالة: {acc.health_status === 'healthy' ? '✅ متصل' : '❌ يحتاج صيانة'}
+                    </Text>
+                  </View>
+                ))
+              )}
             </View>
           </>
         )}

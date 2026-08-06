@@ -33,7 +33,7 @@ import {
   addAccount,
 } from '../services/api';
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ navigation }) {
   const [serverOnline, setServerOnline] = useState(null);
   const [syncing, setSyncing] = useState(false);
   const [aiSyncing, setAiSyncing] = useState(false);
