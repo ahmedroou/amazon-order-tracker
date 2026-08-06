@@ -52,6 +52,9 @@ def get_auth_url() -> str:
 
 def exchange_code_for_tokens(code: str) -> Dict:
     """تبادل الكود بـ tokens"""
+    # Fix for 'Scope has changed' error when using Android serverAuthCode
+    os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
+    
     flow = get_oauth_flow()
     flow.fetch_token(code=code)
     creds = flow.credentials
