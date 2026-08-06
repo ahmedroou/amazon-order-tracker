@@ -94,3 +94,38 @@ def evaluate_user_badges(db):
         db.commit()
     except Exception as e:
         logger.warning(f"Error evaluating badges: {e}")
+
+
+def check_post_purchase_price_drops(db):
+    """
+    تتبع انخفاض الأسعار بعد الشراء:
+    يفحص طلبات الشراء خلال فترة الإرجاع (30 يوماً من الشراء/التوصيل)
+    ويرصد أي انخفاض في السعر لإرسال تنبيه للمستخدم لاسترداد الفرق.
+    """
+    alerts = []
+    try:
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        recent_orders = db.query(Order).filter(
+            Order.purchase_price.isnot(None),
+            Order.purchase_price > 0,
+            Order.created_at >= thirty_days_ago
+        ).all()
+
+        for order in recent_orders:
+            # إذا كان قد سُجل له سعر أقل سابقاً
+            if order.lowest_price_seen and order.lowest_price_seen < order.purchase_price:
+                diff = round(order.purchase_price - order.lowest_price_seen, 2)
+                alerts.append({
+                    "order_id": order.id,
+                    "amazon_order_id": order.amazon_order_id,
+                    "product_name": order.product_name,
+                    "purchase_price": order.purchase_price,
+                    "lowest_price_seen": order.lowest_price_seen,
+                    "savings_opportunity": diff,
+                    "currency": order.currency or "SAR"
+                })
+    except Exception as e:
+        logger.warning(f"Price drop check note: {e}")
+
+    return alerts
+
