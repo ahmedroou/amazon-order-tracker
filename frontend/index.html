@@ -20,7 +20,7 @@
 <!-- ─── SCREEN: Dashboard ─── -->
 <div id="screen-dashboard" class="screen active">
   <div class="top-bar">
-    <span class="top-bar__title">📦 Amazon Tracker</span>
+    <span class="top-bar__title">📦 Amazon Tracker <span id="gamification-title" style="font-size: 0.75rem; color: #34A853; margin-right: 10px; font-weight: normal; background: #e6f4ea; padding: 2px 8px; border-radius: 12px; display: none;"></span></span>
     <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
       <a href="/download" class="btn btn--primary" style="padding: 6px 12px; font-size: 0.78rem; border-radius: 20px; text-decoration: none; display: flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #ea4335, #a78bfa);">
         <span>📱</span> <span>تنزيل APK</span>
@@ -253,12 +253,24 @@
 
     <!-- Search in Analytics -->
     <div class="search-box" style="margin-top: 16px;">
-      <input type="text" id="analytics-search" placeholder="🔍 ابحث عن منتج أو فئة (مثل: حفاضات، بسكويت)..." oninput="loadAnalytics()">
+      <input type="text" id="analytics-search" placeholder="🔍 ابحث عن منتج أو فئة (مثل: حفاضات، إلكترونيات)..." oninput="loadAnalytics()">
     </div>
+
+    <!-- Gamification & Badges -->
+    <div class="section-header" style="margin-top: 16px;">
+      <span>🏆 الشارات والإنجازات الذكية (Gamification)</span>
+    </div>
+    <div id="gamification-badges" class="badges-grid"></div>
+
+    <!-- Spending Categories Breakdown -->
+    <div class="section-header" style="margin-top: 16px;">
+      <span>📊 توزيع الإنفاق حسب الفئات</span>
+    </div>
+    <div id="analytics-categories" class="categories-list"></div>
 
     <!-- Top Products Breakdown -->
     <div class="section-header" style="margin-top: 16px;">
-      <span>🏆 تعداد المنتجات المشتراة</span>
+      <span>🛍️ تعداد المنتجات المشتراة</span>
     </div>
 
     <div id="analytics-products-list" class="orders-list"></div>

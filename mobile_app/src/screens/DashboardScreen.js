@@ -117,7 +117,14 @@ export default function DashboardScreen() {
       {/* Greeting Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greetingSub}>مرحباً بك 👋</Text>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center' }}>
+            <Text style={styles.greetingSub}>مرحباً بك 👋</Text>
+            {stats && stats.gamification_title && (
+              <View style={{ backgroundColor: '#E6F4EA', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, marginRight: 8 }}>
+                <Text style={{ fontSize: 10, color: '#137333', fontWeight: 'bold' }}>{stats.gamification_title}</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.greetingTitle}>لوحة المتابعة</Text>
         </View>
         <TouchableOpacity style={styles.syncIconButton} onPress={handleStartSync} disabled={syncingAction || syncStatus.is_syncing}>

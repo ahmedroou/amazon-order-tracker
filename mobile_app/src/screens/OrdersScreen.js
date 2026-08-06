@@ -141,6 +141,28 @@ export default function OrdersScreen() {
                 </TouchableOpacity>
               ) : null}
             </View>
+            <View style={{flexDirection: 'row-reverse', marginTop: 12}}>
+               <TouchableOpacity 
+                  style={{ backgroundColor: '#F0F0F0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, flexDirection: 'row-reverse', alignItems: 'center' }}
+                  onPress={async () => {
+                    try {
+                      Alert.alert('جاري إنشاء رابط', 'يتم إنشاء رابط مشاركة...');
+                      const res = await fetch(`https://84.8.102.52.sslip.io/api/orders/${item.id}/share`, { method: 'POST' });
+                      const json = await res.json();
+                      if (json.success) {
+                        const url = `https://amazon-tracker.2026.ahmedroou.com${json.share_url}`;
+                        Clipboard.setString(url);
+                        Alert.alert('تم النسخ', `تم إنشاء رابط مشاركة ونسخه بنجاح!\n${url}`);
+                      }
+                    } catch (e) {
+                      Alert.alert('خطأ', 'تعذر إنشاء رابط مشاركة');
+                    }
+                  }}
+               >
+                 <Ionicons name="share-social-outline" size={16} color={colors.primary} />
+                 <Text style={{ fontSize: 12, color: colors.primary, marginRight: 4 }}>مشاركة التتبع</Text>
+               </TouchableOpacity>
+            </View>
           </View>
         </View>
       </TouchableOpacity>

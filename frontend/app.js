@@ -74,6 +74,14 @@ async function loadDashboard() {
     document.getElementById("stat-profit").textContent = formatPrice(stats.total_profit);
     document.getElementById("stat-delivered").textContent = stats.by_status?.delivered || 0;
 
+    if (stats.gamification_title) {
+      const gTitle = document.getElementById("gamification-title");
+      if (gTitle) {
+        gTitle.textContent = stats.gamification_title;
+        gTitle.style.display = "inline-block";
+      }
+    }
+
     // Render Spending Trend Bar Chart
     renderSpendingChart(stats.recent_days || []);
 
@@ -230,6 +238,10 @@ function renderOrderCard(o) {
     ? `<span class="ocard__track" style="background: rgba(79, 195, 247, 0.1); padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(79, 195, 247, 0.3);">🚚 ${o.tracking_number}</span>`
     : "";
 
+  const aiDelayBadge = o.predicted_delay
+    ? `<span class="badge badge--ai-delay" title="${o.predicted_delay_reason || 'تنبؤ ذكي بالتأخير'}">⚠️ AI: احتمال تأخير</span>`
+    : "";
+
   return `
     <div class="ocard ocard--${o.status}" onclick="openDetail(${o.id})">
       <span class="ocard__del" onclick="quickDeleteOrder(event,${o.id})" title="حذف">✕</span>
@@ -237,8 +249,9 @@ function renderOrderCard(o) {
       <div class="ocard__body" style="flex: 1;">
         ${orderId}
         <div class="ocard__name" style="margin-bottom: 6px;">${name}</div>
-        <div class="ocard__row1" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <div class="ocard__row1" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
           <span class="badge badge--${o.status}">${o.status_ar || o.status}</span>
+          ${aiDelayBadge}
           ${email}
           ${date ? `<span class="ocard__date">${date}</span>` : ""}
         </div>
@@ -755,6 +768,64 @@ async function loadAnalytics() {
     document.getElementById("analytics-unique-products").textContent = data.unique_products;
     document.getElementById("analytics-cancelled-items").textContent = data.status_breakdown?.cancelled || 0;
 
+    // Load Gamification Badges
+    try {
+      const badges = await fetch(`${API}/api/gamification/badges`).then(r => r.json());
+      const badgesContainer = document.getElementById("gamification-badges");
+      if (badgesContainer && badges) {
+        badgesContainer.innerHTML = badges.map(b => `
+          <div class="badge-card ${b.unlocked ? 'unlocked' : ''}">
+            <div class="badge-card__header">
+              <div class="badge-card__icon">${b.icon_svg || '🏆'}</div>
+              <div class="badge-card__title">${b.title}</div>
+            </div>
+            <div class="badge-card__desc">${b.description}</div>
+            <div class="badge-card__progress-track">
+              <div class="badge-card__progress-fill" style="width: ${b.progress}%"></div>
+            </div>
+          </div>
+        `).join("");
+      }
+    } catch(e) { console.error("Badges error:", e); }
+
+    // Load Spending Categories Breakdown
+    try {
+      const ordersRes = await fetch(`${API}/api/orders?limit=300`).then(r => r.json());
+      const orders = ordersRes.orders || [];
+      const catMap = {};
+      let totalSpent = 0;
+
+      orders.forEach(o => {
+        const cat = o.category || "أخرى";
+        const cost = o.purchase_price || 0;
+        catMap[cat] = (catMap[cat] || 0) + cost;
+        totalSpent += cost;
+      });
+
+      const catContainer = document.getElementById("analytics-categories");
+      if (catContainer) {
+        const sortedCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
+        if (!sortedCats.length) {
+          catContainer.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted)">لا توجد فئات حالياً</div>`;
+        } else {
+          catContainer.innerHTML = sortedCats.map(([catName, amount]) => {
+            const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
+            return `
+              <div class="category-item">
+                <div class="category-item__header">
+                  <span>${catName} (${pct}%)</span>
+                  <span>${formatPrice(amount)}</span>
+                </div>
+                <div class="category-item__bar-track">
+                  <div class="category-item__bar-fill" style="width: ${pct}%"></div>
+                </div>
+              </div>
+            `;
+          }).join("");
+        }
+      }
+    } catch(e) { console.error("Categories error:", e); }
+
     const container = document.getElementById("analytics-products-list");
     if (!container) return;
 
@@ -792,6 +863,7 @@ async function loadAnalytics() {
     console.error("Analytics load error:", e);
   }
 }
+
 
 function exportCSV() {
   showToast("📥 جاري تصدير الملف كـ Excel / CSV...");

@@ -11,7 +11,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
-async def send_telegram(text: str):
+async def send_telegram(text: str, reply_markup: dict = None):
     """إرسال رسالة عبر تيليجرام"""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
@@ -23,6 +23,8 @@ async def send_telegram(text: str):
         "parse_mode": "Markdown",
         "disable_web_page_preview": True,
     }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -59,9 +61,18 @@ async def notify_new_order(order_data: dict):
         f"📌 الحالة: {status}\n"
     )
 
-    await send_telegram(msg)
+    markup = {
+        "inline_keyboard": [
+            [
+                {"text": "🗺️ تتبع الشحنة", "url": f"https://amazon-tracker.2026.ahmedroou.com"}
+            ],
+            [
+                {"text": "🔕 تأجيل الإشعارات", "callback_data": f"mute_{order_id}"}
+            ]
+        ]
+    }
 
-
+    await send_telegram(msg, reply_markup=markup)
 async def notify_status_change(order_data: dict, old_status: str, new_status: str):
     """إشعار بتغيّر حالة طلب"""
     status_labels = {
@@ -82,4 +93,15 @@ async def notify_status_change(order_data: dict, old_status: str, new_status: st
         f"{status_labels.get(old_status, old_status)} ← {status_labels.get(new_status, new_status)}"
     )
 
-    await send_telegram(msg)
+    markup = {
+        "inline_keyboard": [
+            [
+                {"text": "🗺️ تتبع الشحنة", "url": f"https://amazon-tracker.2026.ahmedroou.com"}
+            ],
+            [
+                {"text": "🔕 تأجيل الإشعارات", "callback_data": f"mute_{order_id}"}
+            ]
+        ]
+    }
+
+    await send_telegram(msg, reply_markup=markup)

@@ -16,11 +16,13 @@ from dotenv import load_dotenv
 import json
 import urllib.request
 
-from database.models import init_db, SessionLocal, EmailAccount, Order, OrderStatusHistory
+from database.models import init_db, SessionLocal, EmailAccount, Order, OrderStatusHistory, UserBadge
 from gmail_client import get_auth_url, exchange_code_for_tokens, fetch_amazon_emails
 from email_parser import parse_order_email, detect_currency
 from bot.notify import notify_new_order, notify_status_change
 from tracker import get_tracking_status, refresh_shipped_orders
+from ai_agent import categorize_product, predict_delay, llm_parse_email
+from price_monitor import evaluate_user_badges, init_badges
 
 load_dotenv()
 
@@ -598,6 +600,112 @@ async def update_order(order_id: int, data: OrderUpdate):
         return serialize_order(order)
 
 
+from fastapi.responses import HTMLResponse
+
+@app.get("/share/{share_uuid}", response_class=HTMLResponse)
+async def share_page(share_uuid: str):
+    """عرض واجهة مشاركة الطلب كصفحة ويب"""
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="ar" dir="rtl">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>تتبع طلب أمازون</title>
+        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+        <style>
+            body {{ font-family: 'Cairo', sans-serif; background-color: #F6F8FA; margin: 0; padding: 20px; color: #1e293b; display: flex; justify-content: center; align-items: center; min-height: 100vh; }}
+            .card {{ background: white; border-radius: 16px; padding: 24px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }}
+            .badge {{ display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 14px; font-weight: bold; margin-bottom: 16px; }}
+            .img-place {{ font-size: 60px; margin-bottom: 16px; }}
+            h2 {{ margin: 0 0 8px 0; font-size: 18px; line-height: 1.4; }}
+            .meta {{ color: #64748b; font-size: 14px; margin-bottom: 24px; }}
+            .btn {{ display: inline-block; background: #6366f1; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; margin-top: 10px; width: 100%; box-sizing: border-box; }}
+            .footer {{ margin-top: 24px; font-size: 12px; color: #94a3b8; }}
+        </style>
+    </head>
+    <body>
+        <div class="card" id="app">
+            <div style="color: #6366f1; margin-bottom: 15px;">
+                <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+            </div>
+            <h3 style="margin-top: 0;">جاري تحميل بيانات الطلب...</h3>
+        </div>
+
+        <script>
+            async function load() {{
+                try {{
+                    const res = await fetch('/api/shared/{share_uuid}');
+                    if(!res.ok) throw new Error('Not found');
+                    const data = await res.json();
+                    
+                    let bg = '#fef3c7'; let textC = '#d97706';
+                    if(data.status === 'delivered') {{ bg = '#dcfce7'; textC = '#15803d'; }}
+                    else if(data.status === 'shipped') {{ bg = '#dbeafe'; textC = '#1d4ed8'; }}
+                    else if(data.status === 'cancelled') {{ bg = '#fee2e2'; textC = '#b91c1c'; }}
+                    
+                    document.getElementById('app').innerHTML = `
+                        <div class="badge" style="background: ${{bg}}; color: ${{textC}};">${{data.status_ar}}</div>
+                        <div class="img-place">📦</div>
+                        <h2>${{data.product_name || 'منتج من أمازون'}}</h2>
+                        <div class="meta">رقم الطلب: ${{data.amazon_order_id || '---'}}</div>
+                        <div style="background: #f8fafc; padding: 16px; border-radius: 8px; text-align: right; margin-bottom: 20px;">
+                            <div style="margin-bottom: 8px;"><strong>تاريخ الطلب:</strong> ${{data.order_date ? data.order_date.substring(0,10) : '---'}}</div>
+                            <div><strong>شركة الشحن:</strong> ${{data.carrier || 'غير محدد'}}</div>
+                        </div>
+                        <div class="footer">⚡ تم المشاركة عبر تطبيق Amazon Tracker</div>
+                    `;
+                }} catch(e) {{
+                    document.getElementById('app').innerHTML = `
+                        <div style="color: #ef4444; font-size: 40px; margin-bottom: 16px;">❌</div>
+                        <h2>عذراً، الرابط غير صالح</h2>
+                        <div class="meta">قد يكون الرابط منتهياً أو غير صحيح.</div>
+                    `;
+                }}
+            }}
+            load();
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+@app.post("/api/orders/{order_id}/share")
+async def generate_share_link(order_id: int):
+    """توليد رابط مشاركة لطلب"""
+    with SessionLocal() as db:
+        order = db.query(Order).filter_by(id=order_id).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        if not order.share_uuid:
+            order.share_uuid = str(uuid.uuid4())
+            db.commit()
+            
+        return {"success": True, "share_uuid": order.share_uuid, "share_url": f"/share/{order.share_uuid}"}
+
+@app.get("/api/shared/{share_uuid}")
+async def get_shared_order(share_uuid: str):
+    """جلب بيانات الطلب للمشاركة (بيانات محدودة للحماية)"""
+    with SessionLocal() as db:
+        order = db.query(Order).filter_by(share_uuid=share_uuid).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="Shared link not found or expired")
+            
+        # Return only safe data (no email, no account info, no purchase price unless needed)
+        return {
+            "amazon_order_id": order.amazon_order_id,
+            "product_name": order.product_name,
+            "product_image": order.product_image,
+            "status": order.status,
+            "status_ar": order.status_ar,
+            "order_date": order.order_date,
+            "estimated_delivery": order.estimated_delivery,
+            "delivery_date": order.delivery_date,
+            "carrier": order.carrier,
+        }
+
+
 @app.delete("/api/orders/{order_id}")
 async def delete_order(order_id: int):
     with SessionLocal() as db:
@@ -690,7 +798,7 @@ async def chat_assistant(req: ChatRequest):
             for o in orders
         ]
             
-    system_prompt = f"""أنت المساعد الذكي لتطبيق تتبع طلبات أمازون. لديك صلاحيات عالية للتحليل، الحساب، وتنظيم المعلومات، وتلخيص البيانات للمستخدم.
+    system_prompt = f"""أنت "الوكيل الذكي" (Smart Agent) لتطبيق تتبع طلبات أمازون. لديك صلاحيات عالية للتحليل المنطقي (Rational Agent)، قراءة بيانات المحفظة، التنبؤ، وتلخيص البيانات.
 أجب باللغة العربية بأسلوب احترافي، مباشر، وداعم.
 
 **معلومات عن النظام الحالي ومحفظة المستخدم:**
@@ -700,14 +808,14 @@ async def chat_assistant(req: ChatRequest):
 **حالة حسابات الإيميل المربوطة:**
 {chr(10).join(accounts_health_summary)}
 
-**أحدث 30 طلب:**
+**أحدث 30 طلب (تاريخ الشراء):**
 {chr(10).join(orders_summary)}
 
-توجيهات هامة:
-- إذا سأل المستخدم عن طلب معين، ابحث في قائمة "أحدث الطلبات" أعلاه وأعطه الإجابة.
-- قدم نصائح لتحليل الإنفاق إذا طلب ذلك.
-- إذا كانت هناك أخطاء في الحسابات، نبّه المستخدم لها بلطف وادعه لإعادة ربط الحساب.
-- لا تخترع معلومات غير موجودة في السياق أعلاه، إلا إذا كانت إجابة عامة حول كيفية استخدام التطبيق.
+**توجيهات الوكيل الذكي (المهام المطلوبة منك):**
+1. **تحليل النفقات الذكي:** إذا سألك المستخدم عن نفقاته، قم بتصنيف الطلبات السابقة (مثلاً: إلكترونيات، كتب، ألعاب، منزل) بناءً على أسمائها، وأخبره إذا كان يصرف الكثير على فئة معينة بطريقة لبقة ومفيدة.
+2. **التنبؤ بمواعيد التوصيل:** إذا سألك المستخدم عن موعد وصول طلب (قيد الانتظار أو الشحن)، قم بتحليل تاريخ الطلبات السابقة المشابهة لتخمن "متوسط أيام التوصيل"، وأعطه تاريخاً متوقعاً (مثلاً: "بناءً على طلباتك السابقة المماثلة، عادةً ما يستغرق الشحن 5 إلى 7 أيام، لذا يتوقع وصوله يوم...").
+3. **الدقة:** لا تخترع معلومات، إذا لم تكن البيانات كافية للتنبؤ، قل ذلك بوضوح.
+4. **تنبيهات الحسابات:** إذا لاحظت أن هناك حساباً فاشلاً (health_status = error/revoked)، نبّه المستخدم فوراً لإعادة ربطه.
 """
 
     contents = []
@@ -779,6 +887,17 @@ async def get_stats():
             func.count(Order.id).label("count")
         ).group_by(func.date(Order.order_date)).order_by(func.date(Order.order_date).desc()).limit(30).all()
 
+        # Gamification Logic
+        gamification_title = "متسوق حكيم 🦉"
+        if total_cost > 10000:
+            gamification_title = "الحوت 🐋"
+        elif total_cost > 5000:
+            gamification_title = "متسوق ذهبي 🏆"
+        elif total_orders > 50:
+            gamification_title = "مدمن تسوق 🛒"
+        elif total_orders > 10:
+            gamification_title = "صائد صفقات 🎯"
+
         return {
             "total_orders": total_orders,
             "total_cost": round(total_cost, 2),
@@ -787,6 +906,7 @@ async def get_stats():
             "by_status": by_status,
             "by_email": by_email,
             "recent_days": [{"day": str(r.day), "count": r.count} for r in recent],
+            "gamification_title": gamification_title,
         }
 
 
@@ -1111,9 +1231,41 @@ async def sync_account(acc: dict, use_ai_forced: bool = False) -> int:
     return new_count
 
 
+# ─── Gamification & Badges API ────────────────────────────
+
+@app.get("/api/gamification/badges")
+async def get_user_badges():
+    """جلب شارات ونشاط الإنجازات"""
+    with SessionLocal() as db:
+        evaluate_user_badges(db)
+        badges = db.query(UserBadge).all()
+        return [
+            {
+                "id": b.id,
+                "badge_key": b.badge_key,
+                "title": b.title,
+                "description": b.description,
+                "icon_svg": b.icon_svg,
+                "unlocked": b.unlocked,
+                "unlocked_at": b.unlocked_at.isoformat() if b.unlocked_at else None,
+                "progress": b.progress,
+            }
+            for b in badges
+        ]
+
+
 # ─── Helpers ──────────────────────────────────────────────
 
 def serialize_order(order: Order, include_history: bool = False) -> dict:
+    cat = order.category or categorize_product(order.product_name)
+    
+    # Calculate Rational Agent Delay prediction
+    is_delayed, delay_reason = predict_delay({
+        "status": order.status,
+        "order_date": order.order_date,
+        "carrier": order.carrier
+    }, [])
+
     data = {
         "id": order.id,
         "account_id": order.account_id,
@@ -1135,6 +1287,10 @@ def serialize_order(order: Order, include_history: bool = False) -> dict:
         "carrier": order.carrier,
         "tracking_url": order.tracking_url,
         "notes": order.notes,
+        "category": cat,
+        "predicted_delay": is_delayed or getattr(order, "predicted_delay", False),
+        "predicted_delay_reason": delay_reason or getattr(order, "predicted_delay_reason", None),
+        "lowest_price_seen": getattr(order, "lowest_price_seen", None),
         "raw_subject": getattr(order, "raw_subject", None),
         "email_snippet": getattr(order, "email_snippet", None),
         "email_message_id": getattr(order, "email_message_id", None),
@@ -1147,6 +1303,7 @@ def serialize_order(order: Order, include_history: bool = False) -> dict:
             for h in order.status_history
         ]
     return data
+
 
 
 

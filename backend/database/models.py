@@ -82,12 +82,20 @@ class Order(Base):
     tracking_url = Column(Text, nullable=True)                 # رابط التتبع المباشر
     notes = Column(Text, nullable=True)                        # ملاحظات يدوية
 
+    # بيانات الذكاء الاصطناعي والتنبيهات المتقدمة
+    category = Column(String(100), default="أخرى")             # تصنيف المنتج التلقائي
+    predicted_delay = Column(Boolean, default=False)            # التنبؤ بالتأخير الذكي
+    predicted_delay_reason = Column(String(300), nullable=True) # سبب التنبؤ بالتأخير
+    lowest_price_seen = Column(Float, nullable=True)           # أقل سعر رصد بعد الشراء
+    return_window_expiry = Column(DateTime, nullable=True)      # موعد انتهاء فترة الإرجاع
+
     # بيانات الإيميل المصدر
     raw_subject = Column(String(500), nullable=True)           # عنوان الرسالة الأصلي
     email_snippet = Column(Text, nullable=True)                # ملخص/نص الرسالة الأصلي
 
     # بيانات النظام
     email_message_id = Column(String(255), nullable=True)  # ID الرسالة في Gmail
+    share_uuid = Column(String(100), nullable=True, unique=True, index=True) # للمشاركة 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -127,6 +135,20 @@ class OrderStatusHistory(Base):
     order = relationship("Order", back_populates="status_history")
 
 
+class UserBadge(Base):
+    """شارات نظام التلعيب والإنجازات (Gamification Badges)"""
+    __tablename__ = "user_badges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    badge_key = Column(String(50), unique=True, nullable=False) # e.g. saver_king, fast_tracker
+    title = Column(String(100), nullable=False)
+    description = Column(String(300), nullable=False)
+    icon_svg = Column(Text, nullable=True)
+    unlocked = Column(Boolean, default=False)
+    unlocked_at = Column(DateTime, nullable=True)
+    progress = Column(Integer, default=0) # 0 - 100
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     # الهجرة التلقائية لإضافة الأعمدة الجديدة
@@ -141,6 +163,18 @@ def init_db():
                 conn.execute(text("ALTER TABLE orders ADD COLUMN raw_subject VARCHAR(500)"))
             if 'email_snippet' not in order_cols:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN email_snippet TEXT"))
+            if 'share_uuid' not in order_cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN share_uuid VARCHAR(100)"))
+            if 'category' not in order_cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN category VARCHAR(100) DEFAULT 'أخرى'"))
+            if 'predicted_delay' not in order_cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN predicted_delay BOOLEAN DEFAULT 0"))
+            if 'predicted_delay_reason' not in order_cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN predicted_delay_reason VARCHAR(300)"))
+            if 'lowest_price_seen' not in order_cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN lowest_price_seen FLOAT"))
+            if 'return_window_expiry' not in order_cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN return_window_expiry TIMESTAMP"))
             conn.commit()
 
         # هجرة جدول email_accounts — حقول الصحة الجديدة
@@ -157,4 +191,5 @@ def init_db():
             conn.commit()
     except Exception as e:
         print(f"Auto-migration note: {e}")
+
 
