@@ -21,12 +21,15 @@
 <div id="screen-dashboard" class="screen active">
   <div class="top-bar">
     <span class="top-bar__title">📦 Amazon Tracker</span>
-    <div style="display: flex; gap: 6px; align-items: center;">
+    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
       <a href="/download" class="btn btn--primary" style="padding: 6px 12px; font-size: 0.78rem; border-radius: 20px; text-decoration: none; display: flex; align-items: center; gap: 4px; background: linear-gradient(135deg, #ea4335, #a78bfa);">
         <span>📱</span> <span>تنزيل APK</span>
       </a>
       <button class="btn btn--secondary" onclick="exportCSV()" title="تصدير تقرير Excel / CSV" style="padding: 6px 10px; font-size: 0.78rem; border-radius: 20px;">
         <span>📥 تصدير CSV</span>
+      </button>
+      <button class="btn btn--secondary" onclick="cleanupOrders()" title="تنظيف الطلبات المكررة القديمة" style="padding: 6px 10px; font-size: 0.78rem; border-radius: 20px; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+        <span>🧹 تنظيف المكررات</span>
       </button>
       <button class="btn btn--secondary" onclick="triggerAISync()" style="padding: 6px 12px; font-size: 0.8rem; border-radius: 20px; display: flex; align-items: center; gap: 4px;">
         <span>🤖</span> <span>مزامنة AI</span>

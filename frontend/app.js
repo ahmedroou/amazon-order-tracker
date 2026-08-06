@@ -181,7 +181,11 @@ function renderOrderCard(o) {
     : "منتج بدون اسم";
 
   const orderId = o.amazon_order_id
-    ? `<span class="ocard__id">#${o.amazon_order_id.slice(-9)}</span>`
+    ? `<div class="ocard__id_full" style="font-family: monospace; font-size: 0.85rem; font-weight: bold; color: var(--text-primary); margin-bottom: 8px;">🆔 ${o.amazon_order_id}</div>`
+    : `<div class="ocard__id_full" style="font-family: monospace; font-size: 0.85rem; font-weight: bold; color: var(--text-primary); margin-bottom: 8px;">🆔 غير معروف</div>`;
+
+  const email = o.to_email
+    ? `<span style="font-size: 0.75rem; color: var(--text-muted);">✉️ ${o.to_email}</span>`
     : "";
 
   const date = o.order_date ? formatDate(o.order_date) : "";
@@ -195,27 +199,45 @@ function renderOrderCard(o) {
     : "";
 
   const tracking = o.tracking_number
-    ? `<span class="ocard__track">🚚 ${o.tracking_number.slice(0,14)}</span>`
+    ? `<span class="ocard__track" style="background: rgba(79, 195, 247, 0.1); padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(79, 195, 247, 0.3);">🚚 ${o.tracking_number}</span>`
     : "";
 
   return `
     <div class="ocard ocard--${o.status}" onclick="openDetail(${o.id})">
       <span class="ocard__del" onclick="quickDeleteOrder(event,${o.id})" title="حذف">✕</span>
       ${img}
-      <div class="ocard__body">
-        <div class="ocard__name">${name}</div>
-        <div class="ocard__row1">
+      <div class="ocard__body" style="flex: 1;">
+        ${orderId}
+        <div class="ocard__name" style="margin-bottom: 6px;">${name}</div>
+        <div class="ocard__row1" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
           <span class="badge badge--${o.status}">${o.status_ar || o.status}</span>
-          ${orderId}
+          ${email}
           ${date ? `<span class="ocard__date">${date}</span>` : ""}
         </div>
-        <div class="ocard__row2">
-          ${price}${profit}
+        <div class="ocard__row2" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>${price}${profit}</div>
           ${tracking}
         </div>
       </div>
     </div>
   `;
+}
+
+async function cleanupOrders() {
+  if (!confirm("هل أنت متأكد من تنظيف قاعدة البيانات من الطلبات المكررة والإبقاء على أحدث نسخة؟")) return;
+  
+  try {
+    const res = await fetch(`${API}/api/orders/cleanup`, { method: "POST" });
+    const data = await res.json();
+    if (data.success) {
+      alert(`تم مسح ${data.cleaned_count} بطاقة مكررة بنجاح!`);
+      loadOrders(); // reload
+    } else {
+      alert("حدث خطأ أثناء التنظيف.");
+    }
+  } catch (err) {
+    alert("فشل الاتصال بالخادم.");
+  }
 }
 
 function filterOrders() {
