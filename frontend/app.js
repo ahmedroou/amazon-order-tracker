@@ -238,10 +238,6 @@ function renderOrderCard(o) {
     ? `<span class="ocard__track" style="background: rgba(79, 195, 247, 0.1); padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(79, 195, 247, 0.3);">🚚 ${o.tracking_number}</span>`
     : "";
 
-  const aiDelayBadge = o.predicted_delay
-    ? `<span class="badge badge--ai-delay" title="${o.predicted_delay_reason || 'تنبؤ ذكي بالتأخير'}">⚠️ AI: احتمال تأخير</span>`
-    : "";
-
   return `
     <div class="ocard ocard--${o.status}" onclick="openDetail(${o.id})">
       <span class="ocard__del" onclick="quickDeleteOrder(event,${o.id})" title="حذف">✕</span>
@@ -251,7 +247,6 @@ function renderOrderCard(o) {
         <div class="ocard__name" style="margin-bottom: 6px;">${name}</div>
         <div class="ocard__row1" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 4px;">
           <span class="badge badge--${o.status}">${o.status_ar || o.status}</span>
-          ${aiDelayBadge}
           ${email}
           ${date ? `<span class="ocard__date">${date}</span>` : ""}
         </div>

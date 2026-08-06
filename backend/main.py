@@ -21,7 +21,7 @@ from gmail_client import get_auth_url, exchange_code_for_tokens, fetch_amazon_em
 from email_parser import parse_order_email, detect_currency
 from bot.notify import notify_new_order, notify_status_change
 from tracker import get_tracking_status, refresh_shipped_orders
-from ai_agent import categorize_product, predict_delay, llm_parse_email
+from ai_agent import categorize_product, llm_parse_email
 from price_monitor import evaluate_user_badges, init_badges
 
 load_dotenv()
@@ -1258,13 +1258,6 @@ async def get_user_badges():
 
 def serialize_order(order: Order, include_history: bool = False) -> dict:
     cat = order.category or categorize_product(order.product_name)
-    
-    # Calculate Rational Agent Delay prediction
-    is_delayed, delay_reason = predict_delay({
-        "status": order.status,
-        "order_date": order.order_date,
-        "carrier": order.carrier
-    }, [])
 
     data = {
         "id": order.id,
@@ -1288,8 +1281,6 @@ def serialize_order(order: Order, include_history: bool = False) -> dict:
         "tracking_url": order.tracking_url,
         "notes": order.notes,
         "category": cat,
-        "predicted_delay": is_delayed or getattr(order, "predicted_delay", False),
-        "predicted_delay_reason": delay_reason or getattr(order, "predicted_delay_reason", None),
         "lowest_price_seen": getattr(order, "lowest_price_seen", None),
         "raw_subject": getattr(order, "raw_subject", None),
         "email_snippet": getattr(order, "email_snippet", None),
