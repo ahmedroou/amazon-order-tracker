@@ -77,6 +77,13 @@ export default function SettingsScreen() {
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       
+      // Force account picker by signing out first
+      try {
+        await GoogleSignin.signOut();
+      } catch (e) {
+        // Ignore if not already signed in
+      }
+      
       const userInfo = await GoogleSignin.signIn();
       const serverAuthCode = userInfo.serverAuthCode;
       
