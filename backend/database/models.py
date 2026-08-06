@@ -168,7 +168,7 @@ def init_db():
             if 'category' not in order_cols:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN category VARCHAR(100) DEFAULT 'أخرى'"))
             if 'predicted_delay' not in order_cols:
-                conn.execute(text("ALTER TABLE orders ADD COLUMN predicted_delay BOOLEAN DEFAULT 0"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN predicted_delay BOOLEAN DEFAULT FALSE"))
             if 'predicted_delay_reason' not in order_cols:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN predicted_delay_reason VARCHAR(300)"))
             if 'lowest_price_seen' not in order_cols:
