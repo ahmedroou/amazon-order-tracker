@@ -82,6 +82,7 @@ class OrderUpdate(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    history: Optional[List[Dict]] = None
 
 
 # ─── Startup ──────────────────────────────────────────────
@@ -689,23 +690,46 @@ async def chat_assistant(req: ChatRequest):
             for o in orders
         ]
             
-    system_prompt = f"""أنت المساعد الذكي لتطبيق تتبع طلبات أمازون. لديك صلاحيات عالية للتحليل والحساب وتنظيم المعلومات.
-أجب باللغة العربية بأسلوب احترافي ومباشر.
-معلومات عن النظام الحالي:
+    system_prompt = f"""أنت المساعد الذكي لتطبيق تتبع طلبات أمازون. لديك صلاحيات عالية للتحليل، الحساب، وتنظيم المعلومات، وتلخيص البيانات للمستخدم.
+أجب باللغة العربية بأسلوب احترافي، مباشر، وداعم.
+
+**معلومات عن النظام الحالي ومحفظة المستخدم:**
 - إجمالي الطلبات: {total_orders}
-- إجمالي المصروفات: {total_spent} ر.س
-أحدث 30 طلب:
+- إجمالي المصروفات: {round(total_spent, 2)} ر.س
+
+**حالة حسابات الإيميل المربوطة:**
+{chr(10).join(accounts_health_summary)}
+
+**أحدث 30 طلب:**
 {chr(10).join(orders_summary)}
+
+توجيهات هامة:
+- إذا سأل المستخدم عن طلب معين، ابحث في قائمة "أحدث الطلبات" أعلاه وأعطه الإجابة.
+- قدم نصائح لتحليل الإنفاق إذا طلب ذلك.
+- إذا كانت هناك أخطاء في الحسابات، نبّه المستخدم لها بلطف وادعه لإعادة ربط الحساب.
+- لا تخترع معلومات غير موجودة في السياق أعلاه، إلا إذا كانت إجابة عامة حول كيفية استخدام التطبيق.
 """
 
+    contents = []
+    # إدراج السياق كرسالة نظام (أو تعليمات للمستخدم الأول)
+    contents.append({"role": "user", "parts": [{"text": system_prompt}]})
+    contents.append({"role": "model", "parts": [{"text": "مرحباً، فهمت السياق وسأكون مساعدك الاحترافي."}]})
+    
+    # إدراج تاريخ المحادثة إذا وجد
+    if req.history:
+        for msg in req.history:
+            role = "user" if msg.get("role") == "user" else "model"
+            contents.append({"role": role, "parts": [{"text": msg.get("text", "")}]})
+            
+    # إدراج رسالة المستخدم الحالية
+    contents.append({"role": "user", "parts": [{"text": req.message}]})
+
     payload = {
-        "contents": [
-            {"role": "user", "parts": [{"text": system_prompt + "\\n\\nرسالة المستخدم:\\n" + req.message}]}
-        ],
-        "generationConfig": {"temperature": 0.3}
+        "contents": contents,
+        "generationConfig": {"temperature": 0.4}
     }
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={gemini_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
     headers = {"Content-Type": "application/json"}
     
     try:

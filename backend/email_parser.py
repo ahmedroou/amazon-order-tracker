@@ -207,10 +207,9 @@ Email Text:
 Return a raw JSON array only, no markdown:"""
 
     models_to_try = [
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-3.1-flash-lite",
-        "gemini-3.5-flash-lite",
+        "gemini-1.5-pro",
+        "gemini-2.0-flash-exp",
+        "gemini-1.5-flash",
     ]
 
     for model_name in models_to_try:
