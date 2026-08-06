@@ -10,6 +10,7 @@ import OrdersScreen from '../screens/OrdersScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import SmartAssistantScreen from '../screens/SmartAssistantScreen';
+import AccountsScreen from '../screens/AccountsScreen'; // Added
 
 const Tab = createBottomTabNavigator();
 
@@ -57,6 +58,13 @@ export default function AppNavigator() {
         <Tab.Screen name="التحليلات" component={AnalyticsScreen} />
         <Tab.Screen name="المساعد" component={SmartAssistantScreen} />
         <Tab.Screen name="الإعدادات" component={SettingsScreen} />
+        
+        {/* Hidden screen inside Tab Navigator */}
+        <Tab.Screen 
+          name="AccountsScreen" 
+          component={AccountsScreen} 
+          options={{ tabBarButton: () => null }} 
+        />
       </Tab.Navigator>
     </View>
   );

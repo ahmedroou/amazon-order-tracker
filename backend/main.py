@@ -790,6 +790,60 @@ async def get_stats():
         }
 
 
+# ─── Accounts Summary API ─────────────────────────────────
+
+@app.get("/api/accounts/summary")
+async def get_accounts_summary():
+    with SessionLocal() as db:
+        # 1. Gmail Accounts
+        gmail_accounts = db.query(EmailAccount).all()
+        gmail_data = []
+        for a in gmail_accounts:
+            gmail_data.append({
+                "id": a.id,
+                "email": a.email,
+                "is_active": a.is_active,
+                "health_status": getattr(a, "health_status", "unknown"),
+                "last_error": a.last_error,
+                "last_synced": a.last_synced,
+            })
+            
+        # 2. Amazon Sub-Accounts (grouped by to_email)
+        from sqlalchemy import func
+        sub_accounts = db.query(
+            Order.to_email,
+            func.count(Order.id).label("total_orders"),
+            func.max(Order.order_date).label("last_order_date"),
+            func.sum(Order.purchase_price).label("total_spent")
+        ).filter(Order.to_email != None).group_by(Order.to_email).all()
+        
+        amazon_data = []
+        now = datetime.utcnow()
+        for row in sub_accounts:
+            # Check if active (e.g. last order within 30 days)
+            is_active = False
+            days_since = -1
+            if row.last_order_date:
+                days_since = (now - row.last_order_date).days
+                if days_since < 45:
+                    is_active = True
+            
+            amazon_data.append({
+                "to_email": row.to_email,
+                "total_orders": row.total_orders,
+                "total_spent": round(row.total_spent or 0.0, 2),
+                "last_order_date": row.last_order_date,
+                "days_since_last_order": days_since,
+                "is_active": is_active,
+            })
+            
+        # Sort Amazon accounts by recent activity
+        amazon_data.sort(key=lambda x: x["last_order_date"] or datetime.min, reverse=True)
+
+        return {
+            "gmail_accounts": gmail_data,
+            "amazon_accounts": amazon_data
+        }
 @app.get("/api/sync/status")
 async def get_sync_status():
     """معاينة حالة المزامنة والنسبة المئوية اللحظية"""

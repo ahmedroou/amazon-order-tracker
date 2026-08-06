@@ -190,6 +190,10 @@ export default function SettingsScreen() {
     return email && email.length ? email[0].toUpperCase() : 'G';
   };
 
+  const [accountsExpanded, setAccountsExpanded] = useState(false);
+
+  const displayedAccounts = accountsExpanded ? accounts : accounts.slice(0, 2);
+
   return (
     <ScrollView
       style={styles.container}
@@ -207,6 +211,25 @@ export default function SettingsScreen() {
       }
     >
       <Text style={styles.headerTitle}>الإعدادات والخدمات</Text>
+
+      {/* Advanced Accounts Navigation Button */}
+      <TouchableOpacity 
+        style={[styles.card, { padding: 0, overflow: 'hidden', marginBottom: 16 }]}
+        onPress={() => navigation.navigate('AccountsScreen')}
+      >
+        <View style={{ backgroundColor: '#F8F9FA', padding: 16, flexDirection: 'row-reverse', alignItems: 'center' }}>
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(234, 67, 53, 0.1)', alignItems: 'center', justifyContent: 'center', marginLeft: 12 }}>
+            <Ionicons name="shield-checkmark" size={24} color="#EA4335" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.textPrimary, textAlign: 'right' }}>إدارة الحسابات المتقدمة</Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, textAlign: 'right', marginTop: 4 }}>
+              عرض تفاصيل إيميلات أمازون الفرعية وحالة كل حساب بشكل دقيق
+            </Text>
+          </View>
+          <Ionicons name="chevron-back" size={20} color={colors.textMuted} />
+        </View>
+      </TouchableOpacity>
 
       {/* App Info Banner */}
       <View style={styles.card}>
@@ -248,7 +271,7 @@ export default function SettingsScreen() {
           </View>
         ) : (
           <View style={styles.accountsList}>
-            {accounts.map((acc) => (
+            {displayedAccounts.map((acc) => (
               <View key={acc.id} style={styles.accountCard}>
                 <View style={styles.accountMainRow}>
                   {/* Gmail Avatar Circle */}
@@ -316,6 +339,17 @@ export default function SettingsScreen() {
                 </View>
               </View>
             ))}
+            
+            {accounts.length > 2 && (
+              <TouchableOpacity 
+                style={{ padding: 10, alignItems: 'center', marginTop: 5 }} 
+                onPress={() => setAccountsExpanded(!accountsExpanded)}
+              >
+                <Text style={{ color: colors.primary, fontWeight: 'bold' }}>
+                  {accountsExpanded ? 'إخفاء الحسابات الإضافية ⬆️' : `عرض باقي الحسابات (${accounts.length - 2}) ⬇️`}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 

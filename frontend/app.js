@@ -62,9 +62,10 @@ async function loadDashboard() {
       }
     }).catch(() => {});
 
-    const [stats, ordersRes] = await Promise.all([
+    const [stats, ordersRes, accountsRes] = await Promise.all([
       fetch(`${API}/api/stats`).then(r => r.json()),
       fetch(`${API}/api/orders?limit=5`).then(r => r.json()),
+      fetch(`${API}/api/accounts/summary`).then(r => r.json()).catch(() => ({ amazon_accounts: [] })),
     ]);
 
     // Stats cards
@@ -110,6 +111,33 @@ async function loadDashboard() {
         <div class="empty-state__title">لا يوجد حسابات مربوطة</div>
         <div class="empty-state__desc">اذهب للإعدادات لربط Gmail</div>
       </div>`;
+    }
+
+    // Amazon Sub-Accounts
+    const amazonEl = document.getElementById("amazon-accounts");
+    if (amazonEl) {
+      if (accountsRes.amazon_accounts?.length) {
+        amazonEl.innerHTML = accountsRes.amazon_accounts.map(acc => `
+          <div class="email-card" style="${acc.is_active ? '' : 'opacity: 0.6; background: #f9f9f9;'}">
+            <div class="email-card__avatar" style="background: ${acc.is_active ? '#34A853' : '#9AA0A6'}">${getInitial(acc.to_email)}</div>
+            <div class="email-card__info">
+              <div class="email-card__email">${acc.to_email}</div>
+              <div class="email-card__meta" style="display: flex; gap: 8px; font-size: 0.75rem;">
+                <span>إنفاق: ${formatPrice(acc.total_spent)}</span>
+                <span>•</span>
+                <span>آخر طلب: ${acc.days_since_last_order >= 0 ? 'منذ ' + acc.days_since_last_order + ' يوم' : 'مجهول'}</span>
+              </div>
+            </div>
+            <div class="email-card__badge">${acc.total_orders} طلب</div>
+          </div>
+        `).join("");
+      } else {
+        amazonEl.innerHTML = `<div class="empty-state">
+          <div class="empty-state__icon">🛒</div>
+          <div class="empty-state__title">لا يوجد حسابات أمازون مكتشفة</div>
+          <div class="empty-state__desc">ستظهر الحسابات تلقائياً عند استلام طلبات</div>
+        </div>`;
+      }
     }
 
     // Recent orders
