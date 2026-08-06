@@ -606,6 +606,47 @@ async def delete_order(order_id: int):
         db.delete(order)
         db.commit()
     return {"success": True}
+@app.post("/api/orders/cleanup")
+async def cleanup_duplicate_orders():
+    """تنظيف قاعدة البيانات من الطلبات المكررة التي تحمل نفس amazon_order_id"""
+    cleaned_count = 0
+    with SessionLocal() as db:
+        # Get all orders that have an amazon_order_id
+        all_orders = db.query(Order).filter(Order.amazon_order_id != None, Order.amazon_order_id != "").all()
+        
+        # Group by amazon_order_id
+        grouped = {}
+        for order in all_orders:
+            key = (order.account_id, order.amazon_order_id)
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(order)
+            
+        for key, orders in grouped.items():
+            if len(orders) > 1:
+                # Sort by updated_at descending (latest first)
+                # Or sort by status to keep the most advanced (delivered > shipped > pending)
+                status_weights = {"delivered": 4, "shipped": 3, "out_for_delivery": 2, "pending": 1}
+                orders.sort(key=lambda o: (status_weights.get(o.status, 0), o.updated_at or datetime.min), reverse=True)
+                
+                # Keep the best one
+                best_order = orders[0]
+                
+                # Merge product names from others if missing
+                for dup in orders[1:]:
+                    if dup.product_name and dup.product_name not in (best_order.product_name or ""):
+                        if best_order.product_name:
+                            if len(best_order.product_name) < 150:
+                                best_order.product_name += " + " + dup.product_name
+                        else:
+                            best_order.product_name = dup.product_name
+                            
+                    db.delete(dup)
+                    cleaned_count += 1
+                    
+        db.commit()
+    
+    return {"success": True, "cleaned_count": cleaned_count}
 
 
 # ─── Chat Assistant API ──────────────────────────────────────
@@ -894,85 +935,57 @@ async def sync_account(acc: dict, use_ai_forced: bool = False) -> int:
                 parsed_notes = parsed.get("notes")
                 parsed_asin = parsed.get("asin")
 
-                # جلب جميع القطع المرتبطة برقم الطلب هذا فقط
-                existing_items = db.query(Order).filter_by(amazon_order_id=order_id).all()
+                # Ensure one unique record per order ID
+                existing_item = db.query(Order).filter_by(amazon_order_id=order_id, account_id=acc["id"]).first()
 
-                matched_item = None
-                if existing_items:
-                    if parsed_asin:
-                        for item in existing_items:
-                            if item.asin and item.asin.upper() == parsed_asin.upper():
-                                matched_item = item
-                                break
-                    
-                    if not matched_item and parsed_product_name:
-                        for item in existing_items:
-                            if item.product_name:
-                                name_a = parsed_product_name.lower().strip()
-                                name_b = item.product_name.lower().strip()
-                                if name_a in name_b or name_b in name_a:
-                                    matched_item = item
-                                    break
-
-                if matched_item:
+                if existing_item:
                     # تحديث القطعة الموجودة لعدم تكرارها
                     status_changed = False
-                    if parsed_status != matched_item.status and parsed_status != "pending":
-                        old_status = matched_item.status
-                        matched_item.status = parsed_status
+                    # Only upgrade status, or change if not pending
+                    if parsed_status != existing_item.status and parsed_status != "pending":
+                        old_status = existing_item.status
+                        existing_item.status = parsed_status
                         status_changed = True
                         db.add(OrderStatusHistory(
-                            order_id=matched_item.id,
+                            order_id=existing_item.id,
                             status=parsed_status,
                             source="email"
                         ))
                     
                     if parsed_notes:
-                        matched_item.notes = parsed_notes
+                        existing_item.notes = parsed_notes
                     if parsed.get("tracking_number"):
-                        matched_item.tracking_number = parsed.get("tracking_number")
+                        existing_item.tracking_number = parsed.get("tracking_number")
                     if parsed.get("carrier"):
-                        matched_item.carrier = parsed.get("carrier")
+                        existing_item.carrier = parsed.get("carrier")
                     if parsed.get("tracking_url"):
-                        matched_item.tracking_url = parsed.get("tracking_url")
+                        existing_item.tracking_url = parsed.get("tracking_url")
                     if parsed.get("estimated_delivery"):
-                        matched_item.estimated_delivery = parsed.get("estimated_delivery")
+                        existing_item.estimated_delivery = parsed.get("estimated_delivery")
                     if parsed.get("purchase_price") is not None:
-                        matched_item.purchase_price = parsed.get("purchase_price")
-                    if parsed.get("product_image") and not matched_item.product_image:
-                        matched_item.product_image = parsed.get("product_image")
+                        existing_item.purchase_price = parsed.get("purchase_price")
+                    if parsed.get("product_image") and not existing_item.product_image:
+                        existing_item.product_image = parsed.get("product_image")
+                    
+                    # Merge product names if a new product is detected for the same order
+                    if parsed_product_name:
+                        current_name = existing_item.product_name or ""
+                        if parsed_product_name.lower().strip() not in current_name.lower():
+                            if current_name:
+                                # Keep it relatively short
+                                if len(current_name) < 150:
+                                    existing_item.product_name = current_name + " + " + parsed_product_name
+                            else:
+                                existing_item.product_name = parsed_product_name
 
-                    matched_item.updated_at = datetime.utcnow()
+                    existing_item.updated_at = datetime.utcnow()
                     db.commit()
 
                     if status_changed:
                         await notify_status_change(
-                            {"product_name": matched_item.product_name, "amazon_order_id": order_id},
+                            {"product_name": existing_item.product_name, "amazon_order_id": order_id},
                             old_status, parsed_status
                         )
-                elif existing_items and not parsed_product_name:
-                    # تحديث عام لكل قطع الطلب إذا لم يُحدد اسم منتج في الإيميل
-                    for existing in existing_items:
-                        status_changed = False
-                        if parsed_status != existing.status and parsed_status != "pending":
-                            old_status = existing.status
-                            existing.status = parsed_status
-                            status_changed = True
-                            db.add(OrderStatusHistory(
-                                order_id=existing.id,
-                                status=parsed_status,
-                                source="email"
-                            ))
-                        if parsed_notes:
-                            existing.notes = parsed_notes
-                        if status_changed or parsed_notes:
-                            existing.updated_at = datetime.utcnow()
-                            db.commit()
-                        if status_changed:
-                            await notify_status_change(
-                                {"product_name": existing.product_name, "amazon_order_id": order_id},
-                                old_status, parsed_status
-                            )
                 else:
                     # قطعة جديدة تماماً (أو طلب جديد) — حفظ البيانات
                     order = Order(

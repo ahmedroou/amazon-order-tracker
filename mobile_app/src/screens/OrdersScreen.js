@@ -101,43 +101,78 @@ export default function OrdersScreen() {
       return colors.statusPending;
     };
 
-    const orderIdShort = item.amazon_order_id ? `#${item.amazon_order_id.slice(-9)}` : '';
+    const orderIdFull = item.amazon_order_id ? item.amazon_order_id : 'لا يوجد رقم طلب';
     const dateStr = item.order_date ? item.order_date.substring(0, 10) : '';
 
     return (
       <TouchableOpacity style={styles.ocard} activeOpacity={0.7} onPress={() => {}}>
-        <View style={styles.ocardImgPlace}>
-          <Text style={{fontSize:20}}>📦</Text>
-        </View>
-        <View style={styles.ocardBody}>
-          <Text style={styles.ocardName} numberOfLines={1}>{item.product_name || 'منتج بدون اسم'}</Text>
-          
-          <View style={styles.ocardRow1}>
-            <View style={[styles.ocardBadge, { backgroundColor: getStatusBg() }]}>
-              <Text style={[styles.ocardBadgeText, { color: getStatusColor() }]}>{getStatusText()}</Text>
-            </View>
-            <Text style={styles.ocardId} selectable>{orderIdShort}</Text>
-            {dateStr ? <Text style={styles.ocardDate}>{dateStr}</Text> : null}
+        <View style={styles.ocardHeader}>
+          <Text style={styles.ocardIdFull} selectable>🆔 {orderIdFull}</Text>
+          <View style={[styles.ocardBadge, { backgroundColor: getStatusBg() }]}>
+            <Text style={[styles.ocardBadgeText, { color: getStatusColor() }]}>{getStatusText()}</Text>
           </View>
-          
-          <View style={styles.ocardRow2}>
-            {item.purchase_price != null ? (
-              <Text style={styles.ocardPrice}>{item.purchase_price.toFixed(2)} ر.س</Text>
-            ) : null}
-            {item.profit != null ? (
-              <Text style={[styles.ocardProfit, { color: item.profit >= 0 ? colors.profitPositive : colors.profitNegative }]}>
-                {item.profit >= 0 ? '+' : ''}{item.profit.toFixed(1)}
-              </Text>
-            ) : null}
-            <View style={{flex: 1}} />
-            {item.tracking_number ? (
-              <TouchableOpacity onPress={() => copyText(item.tracking_number, 'التتبع')}>
-                <Text style={styles.ocardTrack} numberOfLines={1}>🚚 {item.tracking_number.slice(0, 14)}</Text>
-              </TouchableOpacity>
-            ) : null}
+        </View>
+
+        <View style={styles.ocardContent}>
+          <View style={styles.ocardImgPlace}>
+            <Text style={{fontSize:24}}>📦</Text>
+          </View>
+          <View style={styles.ocardBody}>
+            <Text style={styles.ocardName} numberOfLines={2}>{item.product_name || 'منتج غير معروف'}</Text>
+            
+            <View style={styles.ocardRow1}>
+              <Text style={styles.ocardEmail} numberOfLines={1}>✉️ {item.to_email || 'غير معروف'}</Text>
+              {dateStr ? <Text style={styles.ocardDate}>{dateStr}</Text> : null}
+            </View>
+            
+            <View style={styles.ocardRow2}>
+              {item.purchase_price != null ? (
+                <Text style={styles.ocardPrice}>{item.purchase_price.toFixed(2)} {item.currency || 'ر.س'}</Text>
+              ) : null}
+              {item.profit != null ? (
+                <Text style={[styles.ocardProfit, { color: item.profit >= 0 ? colors.profitPositive : colors.profitNegative }]}>
+                  {item.profit >= 0 ? '+' : ''}{item.profit.toFixed(1)}
+                </Text>
+              ) : null}
+              <View style={{flex: 1}} />
+              {item.tracking_number ? (
+                <TouchableOpacity onPress={() => copyText(item.tracking_number, 'التتبع')} style={styles.trackBadge}>
+                  <Text style={styles.ocardTrack} numberOfLines={1}>🚚 {item.tracking_number}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
         </View>
       </TouchableOpacity>
+    );
+  };
+
+  const handleCleanup = async () => {
+    Alert.alert(
+      'تنظيف المكررات',
+      'سيتم مسح الطلبات القديمة المكررة والإبقاء على أحدث نسخة لكل طلب. هل أنت متأكد؟',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        { 
+          text: 'تنظيف', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const res = await fetch('https://84.8.102.52.sslip.io/api/orders/cleanup', { method: 'POST' });
+              const data = await res.json();
+              if (data.success) {
+                Alert.alert('تم التنظيف', `تم مسح ${data.cleaned_count} بطاقة مكررة بنجاح!`);
+                loadOrdersData();
+              }
+            } catch (e) {
+              Alert.alert('خطأ', 'تعذر تنظيف الطلبات');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
     );
   };
 
@@ -145,7 +180,13 @@ export default function OrdersScreen() {
     <View style={styles.container}>
       {/* Search Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>الطلبات والمنتجات</Text>
+        <View style={{flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}>
+          <Text style={styles.title}>الطلبات والمنتجات</Text>
+          <TouchableOpacity onPress={handleCleanup} style={styles.cleanupBtn}>
+            <Ionicons name="trash-bin-outline" size={16} color={colors.primary} />
+            <Text style={styles.cleanupText}>تنظيف</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.searchBox}>
           <Ionicons name="search-outline" size={20} color={colors.textSecondary} style={{ marginLeft: 8 }} />
@@ -234,7 +275,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.textPrimary,
     textAlign: 'right',
-    marginBottom: 12,
+  },
+  cleanupBtn: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    backgroundColor: 'rgba(79, 195, 247, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  cleanupText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
+    marginRight: 4,
   },
   searchBox: {
     flexDirection: 'row-reverse',
@@ -297,10 +351,7 @@ const styles = StyleSheet.create({
   ocard: {
     backgroundColor: colors.surface,
     borderRadius: 12,
-    padding: 8,
-    marginBottom: 8,
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
+    marginBottom: 10,
     elevation: 2,
     shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 1 },
@@ -308,15 +359,39 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     borderWidth: 1,
     borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  ocardHeader: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSecondary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  ocardIdFull: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
+    fontFamily: 'monospace',
+  },
+  ocardContent: {
+    flexDirection: 'row-reverse',
+    padding: 10,
+    alignItems: 'center',
   },
   ocardImgPlace: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 8,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   ocardBody: {
     flex: 1,
@@ -327,46 +402,55 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.textPrimary,
     textAlign: 'right',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   ocardRow1: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  ocardEmail: {
+    fontSize: 11,
+    color: colors.textMuted,
+    flex: 1,
+    textAlign: 'right',
   },
   ocardBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 8,
-    marginLeft: 6,
   },
   ocardBadgeText: {
     fontSize: 10,
     fontWeight: 'bold',
   },
-  ocardId: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontFamily: 'monospace',
-    marginLeft: 8,
-  },
   ocardDate: {
     fontSize: 10,
     color: colors.textMuted,
+    marginLeft: 8,
   },
   ocardRow2: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
   },
   ocardPrice: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: 'bold',
     color: colors.textPrimary,
-    marginLeft: 6,
+    marginLeft: 8,
   },
   ocardProfit: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 'bold',
+  },
+  trackBadge: {
+    backgroundColor: 'rgba(79, 195, 247, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(79, 195, 247, 0.3)',
   },
   ocardTrack: {
     fontSize: 11,
