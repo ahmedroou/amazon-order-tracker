@@ -4,7 +4,7 @@ Main FastAPI Backend — Amazon Order Tracker
 import os
 import logging
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
@@ -22,7 +22,7 @@ from email_parser import parse_order_email, detect_currency
 from bot.notify import notify_new_order, notify_status_change
 from tracker import get_tracking_status, refresh_shipped_orders
 from ai_agent import categorize_product, llm_parse_email
-from price_monitor import evaluate_user_badges, init_badges
+from price_monitor import evaluate_user_badges, init_badges, check_post_purchase_price_drops
 
 load_dotenv()
 
@@ -1252,6 +1252,14 @@ async def get_user_badges():
             }
             for b in badges
         ]
+
+
+@app.get("/api/price-drops")
+async def get_price_drops():
+    """تنبيهات انخفاض الأسعار ما بعد الشراء"""
+    with SessionLocal() as db:
+        alerts = check_post_purchase_price_drops(db)
+        return {"total_alerts": len(alerts), "alerts": alerts}
 
 
 # ─── Helpers ──────────────────────────────────────────────
